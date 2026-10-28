@@ -170,16 +170,38 @@ footer{color:var(--mut);font-size:12.5px;text-align:center;padding:20px 0 40px}
 .bigrow .c{font-size:26px;font-weight:700;color:var(--acc2)}
 .bigrow.key{background:rgba(255,106,43,.12);border-radius:12px}
 #band{display:none}
-@page{size:A4 landscape;margin:12mm}
+.seg{display:inline-flex;gap:0}
+.seg .btn{border-radius:0}.seg .btn:first-child{border-radius:11px 0 0 11px}.seg .btn:last-child{border-radius:0 11px 11px 0}
+.seg .btn.on{background:var(--text);color:#0a0d12;border-color:var(--text)}
+#bandPrev{width:100%}
+.bandfit{width:100%;overflow:hidden}
+/* bracelet : dimensions réelles en mm, identique à l'écran et à l'impression */
+.pband{width:190mm;box-sizing:border-box;border:.35mm dashed #8a96a6;border-radius:4mm;overflow:hidden;padding:1.2mm;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-variant-numeric:tabular-nums;background:var(--pb-bg);color:var(--pb-txt);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pband *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pband.light{--pb-bg:#fff;--pb-cell:#f4f6f9;--pb-line:#d3dae3;--pb-txt:#0a0d12;--pb-mut:#4a586a;--pb-lab:#c2410c;--pb-head:#0a0d12}
+.pband.dark{--pb-bg:#0a0d12;--pb-cell:#121921;--pb-line:#2a3646;--pb-txt:#f2f6fb;--pb-mut:#a7b6c8;--pb-lab:#ffb020;--pb-head:#18212c}
+.pb-head{position:relative;display:flex;align-items:center;gap:3mm;background:var(--pb-head);color:#fff;padding:2.2mm 3mm 3mm;border-radius:2.8mm 2.8mm 0 0}
+.pb-head:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1.1mm;background:linear-gradient(90deg,#ff6a2b,#ffb020)}
+.pb-logo{flex:none;width:9.5mm;height:9.5mm;border-radius:2.6mm;background:linear-gradient(135deg,#ff6a2b,#ffb020);display:grid;place-items:center;font-weight:900;font-size:10.5pt;letter-spacing:-.02em;color:#1a0c04}
+.pb-hoka{display:none;flex:none;height:9.5mm;max-width:26mm;object-fit:contain;background:#fff;padding:1mm 2mm;border-radius:2mm}
+.pb-title{flex:1;min-width:0;line-height:1.2}
+.pb-title b{display:block;font-size:12.5pt;font-weight:800;letter-spacing:-.015em}
+.pb-title span{font-size:8.5pt;opacity:.78}
+.pb-goal{flex:none;text-align:right;line-height:1.05;padding-left:3mm;border-left:.3mm solid rgba(255,255,255,.22)}
+.pb-goal span{display:block;font-size:6.5pt;text-transform:uppercase;letter-spacing:.12em;font-weight:800;color:#ffb020;margin-bottom:.6mm}
+.pb-goal b{font-size:17pt;font-weight:900;letter-spacing:-.03em}
+.pb-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:.8mm;padding:1.8mm 1.6mm 0;background:var(--pb-bg)}
+.pb-c{background:var(--pb-cell);border:.25mm solid var(--pb-line);border-radius:1.8mm;text-align:center;padding:1.1mm 0 1.3mm;color:var(--pb-txt)}
+.pb-c i{display:block;font-style:normal;font-size:7pt;font-weight:800;letter-spacing:.09em;color:var(--pb-lab)}
+.pb-c b{display:block;font-size:16.5pt;font-weight:900;letter-spacing:-.035em;line-height:1.12}
+.pb-c em{display:block;font-style:normal;font-size:10.5pt;font-weight:700;color:var(--pb-mut)}
+.pb-c.key{background:linear-gradient(160deg,#ff6a2b,#ffb020);border-color:#ff6a2b;color:#1a0c04}
+.pb-c.key i,.pb-c.key em{color:#3b1905}
+.pb-foot{display:flex;justify-content:space-between;gap:3mm;padding:1.5mm 2mm .8mm;font-size:6.8pt;color:var(--pb-mut);background:var(--pb-bg)}
+@page{size:A4 landscape;margin:10mm}
 @media print{
+  html,body.printband{background:#fff!important}
   body.printband>*:not(#band){display:none!important}
-  body.printband{background:#fff!important;color:#000!important}
   body.printband #band{display:block}
-  .bandwrap{margin:0 0 14mm;break-inside:avoid}
-  .bandtitle{font:700 12pt system-ui,sans-serif;margin-bottom:3mm;color:#000}
-  .bandwrap table{width:100%;border-collapse:collapse;table-layout:fixed}
-  .bandwrap th,.bandwrap td{border:1.5px solid #000;text-align:center;padding:2.5mm 0;font:800 15pt system-ui,sans-serif;color:#000;background:#fff;letter-spacing:0;text-transform:none}
-  .bandwrap th{font-size:10pt;background:#eee}
-  .bandwrap tr.s td{font-size:11pt;font-weight:600}
-  .bandnote{font:9pt system-ui,sans-serif;margin-top:2mm;color:#333}
+  #band .pband{margin:0 0 9mm;break-inside:avoid}
 }

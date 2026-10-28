@@ -186,6 +186,31 @@ function renderSplits(){
   renderRace();
 }
 
+/* ---------- BRACELET D'ALLURE ---------- */
+const bandTheme=()=>{try{return localStorage.getItem("prepa10kBand")==="dark"?"dark":"light";}catch(e){return"light";}};
+function bandHTML(theme,d,withLogo){
+  const{tgt,p,ks}=d;
+  return`<div class="pband ${theme}"><div class="pb-head"><div class="pb-logo">10K</div>${withLogo?`<img class="pb-hoka" alt="">`:""}<div class="pb-title"><b>10 km HOKA Paris Centre</b><span>Dimanche 15 novembre 2026 · départ 9h30</span></div><div class="pb-goal"><span>Objectif</span><b>${clock(tgt)}</b></div><div class="pb-goal"><span>Allure</span><b>${pace(p)}/km</b></div></div>
+  <div class="pb-grid">${ks.map(k=>`<div class="pb-c ${k.i===5||k.i===10?"key":""}"><i>KM ${k.i}</i><b>${clock(k.cum)}</b><em>${pace(k.k)}</em></div>`).join("")}</div>
+  <div class="pb-foot"><span>Gros : temps de passage · petit : allure du km (/km)</span><span>Km 1 retenu · km 2-8 régulier · relance km 9 · tout donner km 10</span></div></div>`;
+}
+function fitBand(){
+  const w=$("#bandPrev"),inner=w&&w.querySelector(".pband");
+  if(!inner||!w.clientWidth)return;
+  const sc=Math.min(1,w.clientWidth/inner.offsetWidth);
+  inner.style.transformOrigin="0 0";inner.style.transform=`scale(${sc})`;
+  w.querySelector(".bandfit").style.height=inner.offsetHeight*sc+"px";
+}
+window.addEventListener("resize",fitBand);
+/* logo HOKA facultatif : déposer assets/logo-hoka.png dans le dossier du site */
+function printBand(){
+  const im=new Image(),go=ok=>{
+    document.querySelectorAll("#band .pb-hoka").forEach(e=>{if(ok){e.src=im.src;e.style.display="block";}else e.style.display="none";});
+    document.body.classList.add("printband");setTimeout(()=>window.print(),80);
+  };
+  im.onload=()=>go(true);im.onerror=()=>go(false);im.src="assets/logo-hoka.png";
+}
+
 /* ---------- COURSE : mode plein écran et bracelet ---------- */
 let wake=null;
 function renderRace(){
@@ -194,7 +219,11 @@ function renderRace(){
   $("#raceHead").innerHTML=`<div class="eyebrow">Dim. 15 novembre · départ 9h30 · Rivoli → Opéra</div><div class="big" style="font-size:48px">${clock(tgt)}<span>${pace(p)}/km</span></div>`;
   $("#raceHint").innerHTML=sug?(Math.abs(tgt-parseT(sug))>1?`<div class="note cp">D'après ton test 5 km : <b>${sug}</b> (${pace(rp.p)}/km). <button class="btn" data-usetgt="${sug}" style="margin-left:6px">Utiliser ce temps</button></div>`:`<div class="note cp">Temps aligné sur ton test 5 km (${pace(rp.p)}/km).</div>`):`<div class="note mut">Ton test du 8 novembre fixera l'allure de course. En attendant, l'objectif de 43:00 sert de base.</div>`;
   $("#bigBody").innerHTML=`<div class="eyebrow">10 km HOKA Paris Centre</div><div style="font-size:34px;font-weight:900;margin:4px 0 10px">${clock(tgt)} · ${pace(p)}/km</div>`+ks.map(k=>`<div class="bigrow ${k.i===5||k.i===10?"key":""}"><span class="k">KM ${k.i}</span><span class="p">${pace(k.k)}</span><span class="c">${clock(k.cum)}</span></div>`).join("")+`<p class="mut" style="font-size:14px;margin-top:14px">Départ 2 s plus lent, allure stable du km 2 au km 8, puis accélération. Tours manuels à chaque panneau.</p>`;
-  $("#band").innerHTML=[1,2].map(()=>`<div class="bandwrap"><div class="bandtitle">10 km HOKA Paris Centre · ${clock(tgt)} · ${pace(p)}/km</div><table><tr>${ks.map(k=>`<th>km ${k.i}</th>`).join("")}</tr><tr>${ks.map(k=>`<td>${clock(k.cum)}</td>`).join("")}</tr><tr class="s">${ks.map(k=>`<td>${pace(k.k)}/km</td>`).join("")}</tr></table><div class="bandnote">Temps de passage et allure de chaque kilomètre · à découper et fixer au poignet</div></div>`).join("");
+  const bh=(withLogo)=>bandHTML(bandTheme(),{tgt,p,ks},withLogo);
+  $("#band").innerHTML=bh(true)+bh(true);
+  $("#bandPrev").innerHTML=`<div class="bandfit">${bh(false)}</div>`;
+  document.querySelectorAll("[data-bandtheme]").forEach(b=>b.classList.toggle("on",b.dataset.bandtheme===bandTheme()));
+  fitBand();
 }
 async function bigOpen(){$("#bigOv").classList.add("on");document.body.style.overflow="hidden";try{if(navigator.wakeLock)wake=await navigator.wakeLock.request("screen");}catch(e){}}
 function bigClose(){$("#bigOv").classList.remove("on");document.body.style.overflow="";try{if(wake)wake.release();}catch(e){}wake=null;}
@@ -214,10 +243,10 @@ function renderGuide(){
 }
 
 /* ---------- EVENTS ---------- */
-function show(tab){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo({top:0,behavior:"smooth"});}
+function show(tab){setTimeout(()=>{if(tab==="race")fitBand();},0);document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo({top:0,behavior:"smooth"});}
 function refresh(){renderDash();renderPlan();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-tab],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-tab],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(!el)return;
   if(el.dataset.tab){show(el.dataset.tab);}
@@ -232,7 +261,8 @@ document.addEventListener("click",e=>{
   else if(el.dataset.unmove){unmoveSession(el.dataset.unmove);}
   else if(el.hasAttribute("data-big")){bigOpen();}
   else if(el.hasAttribute("data-bigclose")){bigClose();}
-  else if(el.hasAttribute("data-print")){document.body.classList.add("printband");window.print();}
+  else if(el.hasAttribute("data-print")){printBand();}
+  else if(el.dataset.bandtheme){try{localStorage.setItem("prepa10kBand",el.dataset.bandtheme);}catch(e){}renderRace();}
   else if(el.dataset.usetgt){setTarget(el.dataset.usetgt);}
   else if(el.dataset.fit){exportFit(el.dataset.fit);}
   else if(el.hasAttribute("data-zipfit")){exportZip();}
