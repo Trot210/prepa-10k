@@ -70,7 +70,7 @@ function fitWorkout(s){
   const created=Math.floor(Date.now()/1000)-631065600;
   // file_id
   def(0,0,[[0,1,0x00],[1,2,0x84],[2,2,0x84],[3,4,0x8C],[4,4,0x86]]);
-  u8(0);u8(5);u16(255);u16(0);u32(0);u32(created);
+  u8(0);u8(5);u16(255);u16(0);u32(1+Math.floor(Math.random()*0xFFFFFFFD));u32(created); // numéro de série aléatoire : chaque export est un entraînement distinct pour la montre
   // workout
   def(1,26,[[4,1,0x00],[5,4,0x8C],[6,2,0x84],[8,40,0x07]]);
   u8(1);u8(1);u32(0);u16(steps.length);str(wname,40);
@@ -132,7 +132,7 @@ function icsAll(){
 
 /* ----- téléchargement ----- */
 function saveBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
-const fitName=s=>s.date.slice(5).replace("-","")+"_"+s.id+".fit";
+const fitName=s=>s.date.slice(5).replace("-","")+"_"+s.id+"_"+Math.random().toString(36).slice(2,5)+".fit";
 function exportFit(id){const s=ALL.find(x=>x.id===id);if(!s)return;saveBlob(new Blob([fitWorkout(s)],{type:"application/octet-stream"}),fitName(s));toast("Séance exportée (.fit)");}
 function exportZip(){
   const list=ALL.filter(s=>!state.done[s.id]&&s.date>=TODAY);
