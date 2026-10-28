@@ -3,9 +3,11 @@ const FIT_HELP=`<details style="margin-top:10px"><summary class="mut" style="cur
 
 /* ---------- STATE ---------- */
 const KEY="prepa10kHoka2026_v1";
-let state={done:{},logs:{},test:"",week:null,target:"43:00"};
+let state={done:{},logs:{},test:"",week:null,target:"43:00",mt:{}};
 try{const raw=localStorage.getItem(KEY);if(raw)state=Object.assign(state,JSON.parse(raw));}catch(e){}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+stampInit();
+function save(){stamp();persist();syncSoon();}
 
 /* ---------- UTILS ---------- */
 const $=s=>document.querySelector(s);
@@ -170,7 +172,7 @@ function renderGuide(){
 function show(tab){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo({top:0,behavior:"smooth"});}
 function refresh(){renderDash();renderPlan();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-tab],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-tab],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(!el)return;
   if(el.dataset.tab){show(el.dataset.tab);}
@@ -180,6 +182,7 @@ document.addEventListener("click",e=>{
   else if(el.hasAttribute("data-close")){closeS();}
   else if(el.dataset.toggle){const id=el.dataset.toggle;state.done[id]=!state.done[id];if(!state.done[id])delete state.done[id];save();refresh();openS(id);toast(state.done[id]?"Séance validée 💪":"Séance décochée");}
   else if(el.dataset.savelog){const id=el.dataset.savelog,r=$("#lRpe");state.logs[id]={dist:$("#lDist").value.replace(",",".").trim(),dur:$("#lDur").value.trim(),fc:$("#lFc").value.trim(),rpe:(r.dataset.touched||(state.logs[id]&&state.logs[id].rpe))?r.value:"",note:$("#lNote").value};save();refresh();toast("Ressenti enregistré");}
+  else if(el.dataset.sync){const a=el.dataset.sync;if(a==="new")syncEnable(syncGenCode());else if(a==="join")syncFromText(prompt("Colle le code ou le lien de synchronisation :"));else if(a==="now")syncNow(true);else if(a==="link")syncCopyLink();else if(a==="off"&&confirm("Désactiver la synchronisation sur cet appareil ? Tes données restent ici."))syncDisable();}
   else if(el.dataset.fit){exportFit(el.dataset.fit);}
   else if(el.hasAttribute("data-zipfit")){exportZip();}
   else if(el.hasAttribute("data-ics")){exportIcs();}
@@ -195,9 +198,10 @@ $("#t5").addEventListener("keydown",e=>{if(e.key==="Enter")$("#calcBtn").click()
 $("#calcClr").onclick=()=>{state.test="";$("#t5").value="";save();renderCalc();renderDash();};
 $("#tgtBtn").onclick=()=>{const v=parseT($("#tgt").value);if(!v||v<1800||v>3600){toast("Format attendu : 43:00");return;}state.target=$("#tgt").value;save();renderSplits();};
 $("#tgt").addEventListener("keydown",e=>{if(e.key==="Enter")$("#tgtBtn").click();});
-$("#resetBtn").onclick=()=>{if(confirm("Effacer toutes les séances cochées, ressentis et le test ?")){state={done:{},logs:{},test:"",week:null,target:"43:00"};save();week=curWeek();renderPaces();refresh();toast("Suivi réinitialisé");}};
+$("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances cochées, ressentis et le test, sur tous tes appareils synchronisés ?":"Effacer toutes les séances cochées, ressentis et le test ?")){state={done:{},logs:{},test:"",week:null,target:"43:00"};save();week=curWeek();renderPaces();refresh();toast("Suivi réinitialisé");}};
 
 $("#fitHelpPlan").innerHTML=FIT_HELP;
 $("#bkFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;f.text().then(importBackup);e.target.value="";});
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
 renderDash();renderPlan();renderPaces();renderGuide();
+syncInit();
