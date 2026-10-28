@@ -4,12 +4,13 @@
 const ascii=s=>String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[’‘]/g,"'").replace(/[–—]/g,"-").replace(/×/g,"x").replace(/[^\x20-\x7e]/g,"");
 const ZSHORT={W:"Marche",Z1:"Recup",Z2:"EF",Z3:"Seuil",Z4:"Allure 10K",Z5:"Allure 5K",Z6:"Vitesse"};
 
-/* Allure cible d'un segment : [allure lente, allure rapide] en s/km, ou null (cible libre). */
+/* Allure cible d'un segment : [allure lente, allure rapide] en s/km, ou null (cible libre).
+   Ordre : plage exacte du plan (seg.pr) > zone du plan (tableau « Tes zones »). Aucun élargissement. */
 function paceRange(seg,s){
   if(seg.z==="W")return null;
+  if(seg.pr!==undefined)return seg.pr;
   if(seg.z==="Z6"&&((seg.d!=null&&seg.d<=200)||(seg.t!=null&&seg.t<=30)))return null; // lignes droites : le GPS n'est pas fiable
   if(seg.z==="Z4"&&s.race){const rp=racePace();if(rp.src==="test")return[rp.p+2,rp.p-2];}
-  if(seg.p)return[seg.p+8,seg.p-8];
   const m=Z[seg.z].r&&Z[seg.z].r.match(/(\d+)'(\d{2})[^\d]+(\d+)'(\d{2})/);
   if(!m)return null;
   const a=+m[1]*60+ +m[2],b=+m[3]*60+ +m[4];
@@ -44,7 +45,7 @@ function workoutSteps(s){
     else it=hard&&(seg.z==="Z1"||seg.z==="W")?4:0;
     const pr=paceRange(seg,s);
     const dur=seg.d!=null?{type:1,val:Math.round(seg.d*100)}:{type:0,val:Math.round(seg.t*1000)};
-    const lab=seg.d!=null?(seg.d>=1000?(seg.d/1000)+"km":seg.d+"m"):(seg.t>=120?Math.round(seg.t/60)+"min":seg.t+"s");
+    const lab=seg.d!=null?(seg.d>=1000?(seg.d/1000)+"km":seg.d+"m"):(seg.t>=60?(seg.t%60?Math.floor(seg.t/60)+"'"+String(seg.t%60).padStart(2,"0"):seg.t/60+"min"):seg.t+"s");
     return{name:ascii(ZSHORT[seg.z]+" "+lab).slice(0,15),dur,pace:pr,it};
   };
   const phase=(segs,kind)=>{
@@ -78,7 +79,7 @@ function fitWorkout(s){
   steps.forEach((x,i)=>{
     u8(2);u16(i);
     if(x.repeat){str("",16);u8(6);u32(x.from);u8(2);u32(x.n);u32(0);u32(0);u8(0);}
-    else if(x.pace){str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(0);u32(0);u32(Math.round(1e6/x.pace[0]));u32(Math.round(1e6/x.pace[1]));u8(x.it);}
+    else if(x.pace){str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(0);u32(0);u32(Math.floor(1e6/x.pace[0]));u32(Math.floor(1e6/x.pace[1]));u8(x.it);}
     else{str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(2);u32(0);u32(0);u32(0);u8(x.it);}
   });
   const hdr=[];const h8=v=>hdr.push(v&255),h16=v=>{h8(v);h8(v>>8);},h32=v=>{h16(v&0xFFFF);h16(Math.floor(v/65536));};

@@ -20,6 +20,10 @@ const T={
 const S=(z,o)=>Object.assign({z},o);
 let GID=0;
 function rep(n,w,r,last){const a=[],g=++GID;for(let i=0;i<n;i++){a.push(Object.assign({},w,{g,gn:n,gi:i}));if(r&&(i<n-1||last))a.push(Object.assign({},r,{g,gn:n,gi:i}));}return a;}
+/* Allures exactes du plan, en s/km : [lente, rapide]. PR = plage écrite dans la séance ; PT = valeur unique du plan (±5 s) ; pr:null = cible libre. */
+const pm=s=>{const m=s.match(/(\d+)'(\d+)/);return+m[1]*60+ +m[2];};
+const PR=(a,b)=>{const x=pm(a),y=pm(b);return[Math.max(x,y),Math.min(x,y)];};
+const PT=(v,tol)=>{const x=pm(v);return[x+(tol||5),x-(tol||5)];};
 function st(s){const p=s.p||Z[s.z].p;return s.d!=null?{t:s.d/1000*p,d:s.d}:{t:s.t,d:s.t/p*1000};}
 
 /* ---------- PLAN ---------- */
@@ -38,7 +42,7 @@ const PLAN=[
  {id:"w1b",date:"2026-10-22",type:"ef",title:"Endurance fondamentale + lignes droites",short:"45' faciles et 6 accélérations relâchées",
   goal:"Reconstruire le socle aérobie et réveiller la coordination neuromusculaire (foulée, cadence) après la récupération.",
   why:"Les lignes droites ne fatiguent pas : 80 m, c'est trop court pour produire du lactate. Elles rappellent au système nerveux la mécanique de vitesse avant le retour de la qualité dimanche.",
-  wu:{txt:["10' de trot progressif, de 6'10 à 5'45/km"],segs:[S("Z1",{t:600})]},
+  wu:{txt:["10' de trot progressif, de 6'10 à 5'45/km"],segs:[S("Z1",{t:600,pr:PR("6'10","5'45")})]},
   main:{txt:["30' en endurance fondamentale à 5'30 – 5'50/km","6 lignes droites de 80 m relâchées (≈ 90 % de ta vitesse max, pas un sprint), retour en marchant (≈ 45\")"],segs:[S("Z2",{t:1800}),...rep(6,S("Z6",{d:80,p:225}),S("W",{t:45}),true)]},
   cd:{txt:["5' de trot lent"],segs:[S("Z1",{t:300})]},
   tips:["Lignes droites : buste haut, bras relâchés, cherche la fréquence plutôt que l'amplitude.","Vise une cadence ≥ 170 pas/min sur l'EF, ≥ 180 sur les lignes droites."],
@@ -60,15 +64,15 @@ const PLAN=[
   goal:"Puissance aérobie (VO₂max) et économie de course : plus ton plafond monte, plus 4'18 représente une petite fraction de ton maximum, donc plus elle devient tenable.",
   why:"Des répétitions de 400 m à 3'52/km sollicitent fortement la VO₂max tout en restant assez courtes pour garder une belle foulée. Sur piste, le contrôle est simple : 1'33 au tour, soit 23\" aux 100 m.",
   wu:{txt:["20' en EF à 5'40/km","5' de gammes : montées de genoux, talons-fesses, pas chassés, foulées bondissantes","3 lignes droites de 80 m"],segs:[S("Z2",{t:1200}),S("W",{t:300}),...rep(3,S("Z6",{d:80,p:225}),S("W",{t:45}),true)]},
-  main:{txt:["12 × 400 m en 1'32 – 1'34 (3'50 – 3'55/km)","Récupération : 200 m en trot (≈ 1'15)"],segs:rep(12,S("Z6",{d:400,p:233}),S("Z1",{d:200,p:375}))},
+  main:{txt:["12 × 400 m en 1'32 – 1'34 (3'50 – 3'55/km)","Récupération : 200 m en trot (≈ 1'15)"],segs:rep(12,S("Z6",{d:400,p:233,pr:PR("3'55","3'50")}),S("Z1",{d:200,p:375}))},
   cd:{txt:["10' de trot lent"],segs:[S("Z1",{t:600})]},
   tips:["Les deux premières ne doivent pas descendre sous 1'32. Régularité avant vitesse : 2\" d'écart maximum entre ta plus rapide et ta plus lente.","Couloir 1 et tours manuels sur la Garmin : le GPS est imprécis sur piste."],
   tired:"8 à 10 répétitions au lieu de 12. Si tu ne tiens plus 1'35, arrête : la séance a fait son travail, la suite ne serait que de la fatigue."},
  {id:"w2b",date:"2026-10-29",type:"ef",title:"Footing progressif",short:"Volume facile avec une fin en accélération",
   goal:"Volume aérobie et apprentissage de l'accélération en légère fatigue, sans entamer la récupération entre deux séances clés.",
   why:"La progression s'arrête à 4'50/km, bien plus lent que le seuil : tu restes sous la zone qui fatigue. C'est la séance « facile » de la semaine la plus chargée. Elle doit le rester.",
-  wu:{txt:["10' de trot à 6'00 – 6'10/km"],segs:[S("Z1",{t:600})]},
-  main:{txt:["25' en EF à 5'40/km","Puis 10' en progression : 3'20 à 5'20, 3'20 à 5'05, 3'20 à 4'50/km"],segs:[S("Z2",{t:1500}),S("Z2",{t:200,p:320}),S("Z2",{t:200,p:305}),S("Z3",{t:200,p:290})]},
+  wu:{txt:["10' de trot à 6'00 – 6'10/km"],segs:[S("Z1",{t:600,pr:PR("6'10","6'00")})]},
+  main:{txt:["25' en EF à 5'40/km","Puis 10' en progression : 3'20 à 5'20, 3'20 à 5'05, 3'20 à 4'50/km"],segs:[S("Z2",{t:1500}),S("Z2",{t:200,p:320,pr:PT("5'20")}),S("Z2",{t:200,p:305,pr:PT("5'05")}),S("Z3",{t:200,p:290,pr:PT("4'50")})]},
   cd:{txt:["5' de trot lent"],segs:[S("Z1",{t:300})]},
   tips:["Si mardi a été très dur, saute la progression : 40' en EF suffisent."],
   tired:"40' en EF sans progressif, ou 30' si les jambes sont lourdes."},
@@ -89,7 +93,7 @@ const PLAN=[
   goal:"Puissance aérobie sur des efforts d'environ 5 minutes, à une allure légèrement plus rapide que l'allure 10 km : après cette séance, 4'18 doit paraître maîtrisée.",
   why:"Courir 10 s/km plus vite que l'allure cible améliore la tolérance à l'acidité musculaire et l'économie de course à 4'18. Une répétition = 3 tours de piste à ≈ 1'39 le tour.",
   wu:{txt:["20' en EF à 5'40/km","5' de gammes","3 lignes droites de 80 m"],segs:[S("Z2",{t:1200}),S("W",{t:300}),...rep(3,S("Z6",{d:80,p:225}),S("W",{t:45}),true)]},
-  main:{txt:["5 × 1200 m en 4'55 – 5'00 (4'06 – 4'10/km)","Récupération : 2' de trot"],segs:rep(5,S("Z5",{d:1200,p:248}),S("Z1",{t:120}))},
+  main:{txt:["5 × 1200 m en 4'55 – 5'00 (4'06 – 4'10/km)","Récupération : 2' de trot"],segs:rep(5,S("Z5",{d:1200,p:248,pr:PR("4'10","4'06")}),S("Z1",{t:120}))},
   cd:{txt:["10' de trot lent"],segs:[S("Z1",{t:600})]},
   tips:["Contrôle au tour : 1'38 – 1'40. Le 2e tour est celui où l'on ralentit sans s'en rendre compte.","La dernière doit être aussi rapide que la première, pas plus."],
   tired:"4 × 1200 m à la même allure."},
@@ -105,7 +109,7 @@ const PLAN=[
   goal:"Mesurer ta forme réelle pour fixer ton allure de course. Un 5 km à fond prédit ton 10 km de façon fiable (coefficient × 2,085).",
   why:"Sept jours avant la course, l'effort est assez court pour être récupéré à temps et assez long pour être prédictif. Terrain plat obligatoire : la piste (12,5 tours) ou une boucle plate mesurée.",
   wu:{txt:["20' en EF à 5'40/km","5' de gammes","4 accélérations de 100 m, dont les 2 dernières à allure 5 km"],segs:[S("Z2",{t:1200}),S("W",{t:300}),...rep(4,S("Z6",{d:100,p:235}),S("W",{t:45}),true)]},
-  main:{txt:["5 km à fond, mais régulier","Km 1 à 3 : 4'05 – 4'10/km, sans t'emballer","Km 4 et 5 : accélère si tu as de la réserve"],segs:[S("Z5",{d:5000,p:247})]},
+  main:{txt:["5 km à fond, mais régulier","Km 1 à 3 : 4'05 – 4'10/km, sans t'emballer","Km 4 et 5 : accélère si tu as de la réserve"],segs:[S("Z5",{d:3000,p:247,pr:PR("4'10","4'05")}),S("Z5",{d:2000,p:247,pr:null})]},
   cd:{txt:["15' de trot très lent"],segs:[S("Z1",{t:900})]},
   tips:["Fais-le en conditions de course : chaussures de compétition, petit-déjeuner habituel.","Entre ton chrono dans l'onglet « Allures & test » juste après."],
   cpTxt:"Point décisif. ≤ 20'35 → plan A, départ à 4'18 pour 43'. 20'36 – 21'05 → allure 4'21 – 4'23 (≈ 43'40). 21'06 – 21'35 → 4'24 – 4'26 (≈ 44'15). Au-delà → 4'27 ou plus, objectif record personnel. Le calculateur fait le calcul exact.",
@@ -118,7 +122,7 @@ const PLAN=[
   goal:"Graver l'allure de course dans les jambes et garder les sensations de vitesse, avec un volume réduit.",
   why:"En affûtage, on baisse le volume d'environ 40 % mais pas l'intensité : couper la vitesse rendrait les jambes « molles » le jour J. Les 200 m réveillent la fréquence et rendent l'allure de course plus facile par contraste.",
   wu:{txt:["20' en EF à 5'40/km","5' de gammes","2 lignes droites de 80 m"],segs:[S("Z2",{t:1200}),S("W",{t:300}),...rep(2,S("Z6",{d:80,p:225}),S("W",{t:45}),true)]},
-  main:{txt:["3 × 1000 m à ton allure de course (4'18 ou celle fixée par le test), récupération 1'30 en trot","3' de trot","4 × 200 m en 45 – 46\" (3'45 – 3'50/km), récupération 200 m en trot"],segs:[...rep(3,S("Z4",{d:1000}),S("Z1",{t:90}),true),S("Z1",{t:90}),...rep(4,S("Z6",{d:200,p:228}),S("Z1",{d:200,p:375}))]},
+  main:{txt:["3 × 1000 m à ton allure de course (4'18 ou celle fixée par le test), récupération 1'30 en trot","3' de trot","4 × 200 m en 45 – 46\" (3'45 – 3'50/km), récupération 200 m en trot"],segs:[...rep(3,S("Z4",{d:1000}),S("Z1",{t:90}),true),S("Z1",{t:90}),...rep(4,S("Z6",{d:200,p:228,pr:PR("3'50","3'45")}),S("Z1",{d:200,p:375}))]},
   cd:{txt:["10' de trot lent"],segs:[S("Z1",{t:600})]},
   tips:["Les 1000 m doivent sembler contrôlés. S'ils sont durs, ce n'est pas grave : la fraîcheur arrive en fin de semaine.","Pas de séance « pour se rassurer » en plus."],
   tired:"2 × 1000 m + 4 × 200 m."},
@@ -141,7 +145,7 @@ const PLAN=[
  {id:"w4c",date:"2026-11-15",type:"race",race:true,title:"10 km HOKA Paris Centre",short:"Départ 9h30 · rue de Rivoli",
   goal:"Jour J. Exécuter le plan d'allure : patience jusqu'au 8e kilomètre, puis tout donner.",
   why:"Sur 10 km, partir trop vite coûte cher : chaque seconde gagnée au premier kilomètre se repaie au double entre les kilomètres 7 et 9. La régularité est la stratégie la plus rapide.",
-  wu:{txt:["Petit-déjeuner vers 6h30 (3 h avant)","Échauffement de 15' à partir de 8h55 : 10' de trot, 3' de gammes, 3 accélérations progressives jusqu'à l'allure de course","Entrée dans le sas vers 9h20"],segs:[S("Z1",{t:600}),S("W",{t:180}),...rep(3,S("Z4",{d:100}),S("W",{t:40}),true)]},
+  wu:{txt:["Petit-déjeuner vers 6h30 (3 h avant)","Échauffement de 15' à partir de 8h55 : 10' de trot, 3' de gammes, 3 accélérations progressives jusqu'à l'allure de course","Entrée dans le sas vers 9h20"],segs:[S("Z1",{t:600}),S("W",{t:180}),...rep(3,S("Z4",{d:100,pr:null}),S("W",{t:40}),true)]},
   main:{txt:["Km 1 : 2 s plus lent que l'allure prévue, malgré la foule","Km 2 à 5 : allure prévue, passage aux 5 km en ≈ 21'28 pour 43'","Km 6 à 8 : la zone mentale, reste sur l'allure, relâche les épaules","Km 9 : relance de 1 à 2 s","Km 10 : tout ce qui reste, accélération finale sur l'avenue de l'Opéra"],segs:[S("Z4",{d:10000})]},
   cd:{txt:["10' de marche et de trot très lent","Hydratation, puis un vrai repas"],segs:[S("W",{t:600})]},
   tips:["Tours manuels à chaque panneau kilométrique : le GPS est imprécis entre les immeubles.","Place-toi dans le sas correspondant à 43 – 45' pour ne pas zigzaguer.","Chaussures déjà testées sur la séance 3 × 2 km : rien de nouveau ce jour-là.","Un gel 15' avant le départ est possible si tu en as l'habitude, inutile pendant la course."],
