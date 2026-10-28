@@ -160,3 +160,26 @@ td.num{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);background:var(--text);color:#0a0d12;padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;opacity:0;transition:.25s;z-index:60;pointer-events:none}
 .toast.on{opacity:1;transform:translateX(-50%)}
 footer{color:var(--mut);font-size:12.5px;text-align:center;padding:20px 0 40px}
+
+/* mode course et bracelet */
+.bigov{position:fixed;inset:0;z-index:70;background:var(--bg);overflow-y:auto;padding:max(16px,env(safe-area-inset-top)) 16px 28px;display:none}
+.bigov.on{display:block}
+.bigrow{display:grid;grid-template-columns:78px 1fr auto;align-items:baseline;gap:10px;padding:12px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.bigrow .k{font-size:20px;color:var(--mut);font-weight:800}
+.bigrow .p{font-size:42px;font-weight:900;letter-spacing:-.03em}
+.bigrow .c{font-size:26px;font-weight:700;color:var(--acc2)}
+.bigrow.key{background:rgba(255,106,43,.12);border-radius:12px}
+#band{display:none}
+@page{size:A4 landscape;margin:12mm}
+@media print{
+  body.printband>*:not(#band){display:none!important}
+  body.printband{background:#fff!important;color:#000!important}
+  body.printband #band{display:block}
+  .bandwrap{margin:0 0 14mm;break-inside:avoid}
+  .bandtitle{font:700 12pt system-ui,sans-serif;margin-bottom:3mm;color:#000}
+  .bandwrap table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .bandwrap th,.bandwrap td{border:1.5px solid #000;text-align:center;padding:2.5mm 0;font:800 15pt system-ui,sans-serif;color:#000;background:#fff;letter-spacing:0;text-transform:none}
+  .bandwrap th{font-size:10pt;background:#eee}
+  .bandwrap tr.s td{font-size:11pt;font-weight:600}
+  .bandnote{font:9pt system-ui,sans-serif;margin-top:2mm;color:#333}
+}

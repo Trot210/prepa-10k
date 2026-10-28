@@ -66,7 +66,7 @@ function fitWorkout(s){
   const u8=v=>b.push(v&255),u16=v=>{u8(v);u8(v>>8);},u32=v=>{u16(v&0xFFFF);u16(Math.floor(v/65536)&0xFFFF);};
   const str=(t,n)=>{for(let i=0;i<n;i++)u8(i<t.length?t.charCodeAt(i):0);};
   const def=(local,msg,fields)=>{u8(0x40|local);u8(0);u8(0);u16(msg);u8(fields.length);fields.forEach(f=>{u8(f[0]);u8(f[1]);u8(f[2]);});};
-  const wname=ascii(`${s.date.slice(8)}/${s.date.slice(5,7)} ${s.title}`).slice(0,39);
+  const wname=ascii(`${sdate(s).slice(8)}/${sdate(s).slice(5,7)} ${s.title}`).slice(0,39);
   const created=Math.floor(Date.now()/1000)-631065600;
   // file_id
   def(0,0,[[0,1,0x00],[1,2,0x84],[2,2,0x84],[3,4,0x8C],[4,4,0x86]]);
@@ -113,18 +113,20 @@ function zipStore(files){
 /* ----- ICS ----- */
 function icsFold(l){const o=[];while(l.length>72){o.push(l.slice(0,72));l=" "+l.slice(72);}o.push(l);return o.join("\r\n");}
 const icsEsc=t=>String(t).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");
+/* Séances à venir, créneau 11h–13h (course : 9h30), rappels la veille à 20h et 1 h avant. */
 function icsAll(){
-  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Prepa 10K HOKA//FR","CALSCALE:GREGORIAN","X-WR-CALNAME:Prépa 10K HOKA"];
-  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
-  const ymd=d=>d.replace(/-/g,"");
-  ALL.forEach(s=>{
-    const nxt=new Date(D(s.date));nxt.setDate(nxt.getDate()+1);
-    const nd=nxt.getFullYear()+String(nxt.getMonth()+1).padStart(2,"0")+String(nxt.getDate()).padStart(2,"0");
-    const body=[`${T[s.type].n} · ${dur(s.t)} · ${km(s.d)} km`,"",s.goal,"","Échauffement : "+s.wu.txt.join(" ; "),"Corps de séance : "+s.main.txt.join(" ; "),"Retour au calme : "+s.cd.txt.join(" ; ")].join("\n");
-    L.push("BEGIN:VEVENT",`UID:${s.id}@prepa10k.local`,`DTSTAMP:${stamp}`);
-    if(s.id==="w4c")L.push("DTSTART:20261115T093000","DTEND:20261115T104500");
-    else L.push(`DTSTART;VALUE=DATE:${ymd(s.date)}`,`DTEND;VALUE=DATE:${nd}`);
-    L.push(icsFold("SUMMARY:"+icsEsc("🏃 "+s.title+(s.opt?" (optionnel)":""))),icsFold("DESCRIPTION:"+icsEsc(body)),"END:VEVENT");
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Prepa 10K HOKA//FR","CALSCALE:GREGORIAN","X-WR-CALNAME:Prépa 10K HOKA","X-WR-TIMEZONE:Europe/Paris"];
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,""),seq=Math.floor(Date.now()/1000);
+  const alarm=(trig,txt)=>["BEGIN:VALARM","ACTION:DISPLAY",icsFold("DESCRIPTION:"+icsEsc(txt)),"TRIGGER:"+trig,"END:VALARM"];
+  ALL.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY).forEach(s=>{
+    const d=sdate(s).replace(/-/g,""),race=s.id==="w4c";
+    const body=[`${T[s.type].n} · ${dur(s.t)} · ${km(s.d)} km`,"",s.goal,"","Échauffement : "+lines(s,s.wu).join(" ; "),"Corps de séance : "+lines(s,s.main).join(" ; "),"Retour au calme : "+lines(s,s.cd).join(" ; ")].join("\n");
+    L.push("BEGIN:VEVENT",`UID:${s.id}@prepa10k.local`,`DTSTAMP:${stamp}`,`SEQUENCE:${seq}`,
+      race?`DTSTART:${d}T093000`:`DTSTART:${d}T110000`,race?`DTEND:${d}T104500`:`DTEND:${d}T130000`,
+      icsFold("SUMMARY:"+icsEsc("🏃 "+s.title+(s.opt?" (optionnel)":""))),icsFold("DESCRIPTION:"+icsEsc(body)));
+    if(race)L.push(...alarm("-PT13H30M","Demain : 10 km HOKA Paris Centre. Dossard, chaussures testées, repas connu."),...alarm("-PT3H","Petit-déjeuner maintenant : départ à 9h30."));
+    else L.push(...alarm("-PT15H","Demain : "+s.title+" ("+dur(s.t)+", créneau 11h–13h)"),...alarm("-PT1H","Séance dans 1 h : "+s.title));
+    L.push("END:VEVENT");
   });
   L.push("END:VCALENDAR");
   return new Blob([L.join("\r\n")],{type:"text/calendar;charset=utf-8"});
@@ -132,15 +134,15 @@ function icsAll(){
 
 /* ----- téléchargement ----- */
 function saveBlob(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
-const fitName=s=>s.date.slice(5).replace("-","")+"_"+s.id+"_"+Math.random().toString(36).slice(2,5)+".fit";
+const fitName=s=>sdate(s).slice(5).replace("-","")+"_"+s.id+"_"+Math.random().toString(36).slice(2,5)+".fit";
 function exportFit(id){const s=ALL.find(x=>x.id===id);if(!s)return;saveBlob(new Blob([fitWorkout(s)],{type:"application/octet-stream"}),fitName(s));toast("Séance exportée (.fit)");}
 function exportZip(){
-  const list=ALL.filter(s=>!state.done[s.id]&&s.date>=TODAY);
+  const list=ALL.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY);
   if(!list.length){toast("Aucune séance à venir");return;}
   saveBlob(zipStore(list.map(s=>({name:fitName(s),data:fitWorkout(s)}))),"seances-garmin.zip");
   toast(list.length+" séances exportées");
 }
-function exportIcs(){saveBlob(icsAll(),"prepa-10k.ics");toast("Calendrier exporté");}
+function exportIcs(){if(!ALL.some(s=>!state.done[s.id]&&sdate(s)>=TODAY)){toast("Aucune séance à venir");return;}saveBlob(icsAll(),"prepa-10k.ics");toast("Calendrier exporté");}
 
 /* ----- sauvegarde du suivi ----- */
 function exportBackup(){saveBlob(new Blob([JSON.stringify({app:"prepa10k",v:1,state},null,1)],{type:"application/json"}),"suivi-prepa-10k.json");toast("Sauvegarde téléchargée");}
@@ -148,7 +150,7 @@ function importBackup(text){
   try{
     const o=JSON.parse(text),st=o&&o.state?o.state:o;
     if(!st||typeof st!=="object"||typeof st.done!=="object"||typeof st.logs!=="object")throw 0;
-    state=Object.assign({done:{},logs:{},test:"",week:null,target:"43:00"},st);
+    state=Object.assign({done:{},logs:{},moves:{},test:"",week:null,target:"43:00"},st);
     save();week=curWeek();renderPaces();refresh();toast("Suivi importé");
   }catch(e){toast("Fichier non reconnu");}
 }

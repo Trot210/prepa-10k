@@ -155,3 +155,5 @@ const PLAN=[
 const ALL=PLAN.flatMap(w=>w.sessions.map(s=>Object.assign(s,{wk:w.n})));
 const MAIN=ALL.filter(s=>!s.opt);
 ALL.forEach(s=>{s.segs=[...s.wu.segs,...s.main.segs,...s.cd.segs];let t=0,d=0;s.segs.forEach(x=>{const r=st(x);t+=r.t;d+=r.d;});s.t=t;s.d=d/1000;});
+/* date effective d'une séance (déplacée ou non) */
+const sdate=s=>(state.moves&&state.moves[s.id])||s.date;

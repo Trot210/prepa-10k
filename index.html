@@ -22,6 +22,7 @@
       <button class="tab on" data-tab="dash">Tableau de bord</button>
       <button class="tab" data-tab="plan">Programme</button>
       <button class="tab" data-tab="paces">Allures & test</button>
+      <button class="tab" data-tab="race">Course</button>
       <button class="tab" data-tab="guide">Guide</button>
     </nav>
   </div>
@@ -89,6 +90,7 @@
     <div class="card">
       <p class="mut" style="margin-top:0">Chaque séance devient un entraînement structuré pour ta Forerunner 55 (échauffement, répétitions, allures cibles). Rien n'est envoyé sur internet : les fichiers sont générés ici.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" data-zipfit>⌚ Séances à venir pour ma montre (.zip)</button><button class="btn" data-ics>📅 Calendrier (.ics)</button></div>
+      <p class="mut" style="font-size:12.5px;margin:10px 0 0">Calendrier : créneau 11h–13h (course à 9h30), rappel la veille à 20h et 1 h avant. Seules les séances à venir sont exportées, avec leur date actuelle.</p>
       <div id="fitHelpPlan" style="margin-top:12px"></div>
     </div>
   </section>
@@ -122,6 +124,21 @@
     </div>
   </section>
 
+  <!-- COURSE -->
+  <section class="view" id="v-race">
+    <div class="card">
+      <div id="raceHead"></div>
+      <div class="calcIn" style="margin-top:12px"><span class="mut" style="font-weight:600">Temps visé</span><input id="tgt2" value="43:00"><button class="btn" id="tgt2Btn">Mettre à jour</button></div>
+      <div id="raceHint" style="margin-top:12px"></div>
+    </div>
+    <h2>Passages au kilomètre</h2>
+    <div class="card">
+      <div class="split" id="splits2"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px"><button class="btn pri" data-big>📱 Mode course (plein écran)</button><button class="btn" data-print>🖨 Imprimer le bracelet d'allure</button></div>
+      <p class="mut" style="font-size:13px;margin:12px 0 0">Le mode course affiche les passages en grand et garde l'écran allumé (si ton navigateur le permet). Le bracelet s'imprime en deux exemplaires : à découper et fixer au poignet.</p>
+    </div>
+  </section>
+
   <!-- GUIDE -->
   <section class="view" id="v-guide">
     <div class="grid g2" id="guideGrid"></div>
@@ -136,6 +153,8 @@
   <input type="file" id="bkFile" accept=".json,application/json" hidden>
 </footer>
 
+<div class="bigov" id="bigOv"><button class="close" data-bigclose style="position:fixed;right:14px;top:14px">×</button><div id="bigBody"></div></div>
+<div id="band"></div>
 <div class="ov" id="ov"><div class="panel" id="panel"></div></div>
 <div class="toast" id="toast"></div>
 
