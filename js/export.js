@@ -2,14 +2,22 @@
 /* Aucun serveur, aucun compte Garmin : tout est généré dans le navigateur. */
 
 const ascii=s=>String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[’‘]/g,"'").replace(/[–—]/g,"-").replace(/×/g,"x").replace(/[^\x20-\x7e]/g,"");
-const ZSHORT={W:"Marche",Z1:"Recup",Z2:"EF",Z3:"Seuil",Z4:"Allure 10K",Z5:"Allure 5K",Z6:"Vitesse"};
+const ZSHORT={W:"Marche",Z1:"Recup",Z2:"EF",Z3:"Seuil",Z4:"Allure 10K",Z5:"Allure 5K",Z6:"Vitesse",R:"Recup",E:"EF",AA:"Active",SE:"Seuil",AK:"Allure 10K",A5:"Allure 5K",VM:"Vitesse"};
 
+/* Cible FC d'un segment : [min, max] en bpm, ou null. Ordre : seg.hr (null = libre) > zone pilotée à la FC.
+   Une allure explicite (seg.pr) l'emporte : le segment est alors piloté à l'allure. */
+function hrRange(seg){
+  if(seg.z==="W"||seg.pr!==undefined)return null;
+  if(seg.hr!==undefined)return seg.hr;
+  return Z[seg.z].hr||null;
+}
 /* Allure cible d'un segment : [allure lente, allure rapide] en s/km, ou null (cible libre).
    Ordre : plage exacte du plan (seg.pr) > zone du plan (tableau « Tes zones »). Aucun élargissement. */
 function paceRange(seg,s){
   if(seg.z==="W")return null;
   if(seg.pr!==undefined)return seg.pr;
-  if(seg.z==="Z6"&&((seg.d!=null&&seg.d<=200)||(seg.t!=null&&seg.t<=30)))return null; // lignes droites : le GPS n'est pas fiable
+  if(seg.hr!==undefined||Z[seg.z].hr)return null;   // segment piloté à la FC (ou trot libre)
+  if(isStride(seg))return null; // lignes droites : le GPS n'est pas fiable
   if(seg.z==="Z4"&&s.race){const rp=racePace();if(rp.src==="test")return[rp.p+2,rp.p-2];}
   const m=Z[seg.z].r&&Z[seg.z].r.match(/(\d+)'(\d{2})[^\d]+(\d+)'(\d{2})/);
   if(!m)return null;
@@ -35,18 +43,18 @@ function foldSegs(segs){
 
 /* Liste d'étapes prêtes à encoder pour une séance. */
 function workoutSteps(s){
-  const hard=s.main.segs.some(x=>["Z3","Z4","Z5","Z6"].includes(x.z));
+  const hard=s.main.segs.some(x=>isQ(x.z));
   const out=[];
   const mk=(seg,kind,role)=>{
     let it;
     if(kind==="wu")it=role==null?2:(role===0?0:4);
     else if(kind==="cd")it=3;
-    else if(["Z3","Z4","Z5","Z6"].includes(seg.z))it=5;
-    else it=hard&&(seg.z==="Z1"||seg.z==="W")?4:0;
-    const pr=paceRange(seg,s);
+    else if(isQ(seg.z))it=5;
+    else it=hard&&(seg.z==="Z1"||seg.z==="R"||seg.z==="W")?4:0;
+    const pr=paceRange(seg,s),hr=pr?null:hrRange(seg);
     const dur=seg.d!=null?{type:1,val:Math.round(seg.d*100)}:{type:0,val:Math.round(seg.t*1000)};
     const lab=seg.d!=null?(seg.d>=1000?(seg.d/1000)+"km":seg.d+"m"):(seg.t>=60?(seg.t%60?Math.floor(seg.t/60)+"'"+String(seg.t%60).padStart(2,"0"):seg.t/60+"min"):seg.t+"s");
-    return{name:ascii(ZSHORT[seg.z]+" "+lab).slice(0,15),dur,pace:pr,it};
+    return{name:ascii(ZSHORT[seg.z]+" "+lab).slice(0,15),dur,pace:pr,hr,it};
   };
   const phase=(segs,kind)=>{
     foldSegs(segs).forEach(nd=>{
@@ -80,6 +88,7 @@ function fitWorkout(s){
     u8(2);u16(i);
     if(x.repeat){str("",16);u8(6);u32(x.from);u8(2);u32(x.n);u32(0);u32(0);u8(0);}
     else if(x.pace){str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(0);u32(0);u32(Math.floor(1e6/x.pace[0]));u32(Math.floor(1e6/x.pace[1]));u8(x.it);}
+    else if(x.hr){str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(1);u32(0);u32(x.hr[0]+100);u32(x.hr[1]+100);u8(x.it);} // FC personnalisée : bpm + 100 (norme FIT)
     else{str(x.name,16);u8(x.dur.type);u32(x.dur.val);u8(2);u32(0);u32(0);u32(0);u8(x.it);}
   });
   const hdr=[];const h8=v=>hdr.push(v&255),h16=v=>{h8(v);h8(v>>8);},h32=v=>{h16(v&0xFFFF);h16(Math.floor(v/65536));};
@@ -115,7 +124,7 @@ function icsFold(l){const o=[];while(l.length>72){o.push(l.slice(0,72));l=" "+l.
 const icsEsc=t=>String(t).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");
 /* Séances à venir, créneau 11h–13h (course : 9h30), rappels la veille à 20h et 1 h avant. */
 function icsAll(){
-  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Prepa 10K HOKA//FR","CALSCALE:GREGORIAN","X-WR-CALNAME:Prépa 10K HOKA","X-WR-TIMEZONE:Europe/Paris"];
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Prepa 10K HOKA//FR","CALSCALE:GREGORIAN","X-WR-CALNAME:Entraînement course à pied","X-WR-TIMEZONE:Europe/Paris"];
   const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,""),seq=Math.floor(Date.now()/1000);
   const alarm=(trig,txt)=>["BEGIN:VALARM","ACTION:DISPLAY",icsFold("DESCRIPTION:"+icsEsc(txt)),"TRIGGER:"+trig,"END:VALARM"];
   ALL.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY).forEach(s=>{
@@ -142,7 +151,7 @@ function exportZip(){
   saveBlob(zipStore(list.map(s=>({name:fitName(s),data:fitWorkout(s)}))),"seances-garmin.zip");
   toast(list.length+" séances exportées");
 }
-function exportIcs(){if(!ALL.some(s=>!state.done[s.id]&&sdate(s)>=TODAY)){toast("Aucune séance à venir");return;}saveBlob(icsAll(),"prepa-10k.ics");toast("Calendrier exporté");}
+function exportIcs(){if(!ALL.some(s=>!state.done[s.id]&&sdate(s)>=TODAY)){toast("Aucune séance à venir");return;}saveBlob(icsAll(),"entrainement-running.ics");toast("Calendrier exporté");}
 
 /* ----- sauvegarde du suivi ----- */
 function exportBackup(){saveBlob(new Blob([JSON.stringify({app:"prepa10k",v:1,state},null,1)],{type:"application/json"}),"suivi-prepa-10k.json");toast("Sauvegarde téléchargée");}

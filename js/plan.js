@@ -152,8 +152,17 @@ const PLAN=[
   tired:"Si la forme du jour n'y est pas (sommeil, chaleur, maladie), pars sur 4'22 et accélère à partir du 6e km si les sensations sont bonnes."}
  ]}
 ];
-const ALL=PLAN.flatMap(w=>w.sessions.map(s=>Object.assign(s,{wk:w.n})));
-const MAIN=ALL.filter(s=>!s.opt);
-ALL.forEach(s=>{s.segs=[...s.wu.segs,...s.main.segs,...s.cd.segs];let t=0,d=0;s.segs.forEach(x=>{const r=st(x);t+=r.t;d+=r.d;});s.t=t;s.d=d/1000;});
+/* Prépare les séances d'un cycle : semaine, cycle, segments, durée, distance, séance dure ou non. */
+const isQ=z=>Z[z].lvl>=3.4;
+/* ligne droite / accélération : courte, sans allure imposée (le GPS n'est pas fiable sur si peu) */
+const isStride=x=>(x.z==="Z6"||x.z==="VM")&&x.pr===undefined&&((x.d!=null&&x.d<=200)||(x.t!=null&&x.t<=30));
+function finalize(plan,cy){
+  return plan.flatMap(w=>w.sessions.map(s=>{
+    Object.assign(s,{wk:w.n,cy});
+    s.segs=[...s.wu.segs,...s.main.segs,...s.cd.segs];let t=0,d=0;s.segs.forEach(x=>{const r=st(x);t+=r.t;d+=r.d;});s.t=t;s.d=d/1000;
+    s.hard=s.main.segs.some(x=>isQ(x.z)&&!isStride(x));
+    return s;
+  }));
+}
 /* date effective d'une séance (déplacée ou non) */
 const sdate=s=>(state.moves&&state.moves[s.id])||s.date;

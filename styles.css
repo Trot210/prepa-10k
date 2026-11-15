@@ -277,3 +277,8 @@ tr.sel td{background:#1d2937!important}
 .momhud .mhs{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
 .momhud .mhs b{display:block;color:var(--text);font-size:20px;letter-spacing:-.02em;text-transform:none;font-variant-numeric:tabular-nums}
 .momchart{margin-top:10px}
+
+/* choix du cycle affiché */
+.cycbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.cycbar .lab{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.cycbar .seg .btn{padding:7px 12px;font-size:13px}

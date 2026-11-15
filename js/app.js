@@ -26,9 +26,26 @@ function badge(type){const t=T[type];return`<span class="badge" style="backgroun
 function racePace(){const t5=parseT(state.test);if(!t5)return{p:258,src:"provisoire"};const pred=t5*2.085;let p=pred<=2580?Math.min(258,Math.round(pred/10)):Math.ceil(pred/10);p=Math.max(250,Math.min(p,320));return{p,src:"test",pred};}
 function doneKm(s){const l=state.logs[s.id];return l&&parseFloat(l.dist)>0?parseFloat(l.dist):s.d;}
 
+/* ---------- CYCLE AFFICHÉ (hiver 2026 ou prépa 10 km) ---------- */
+const CYC_KEY="prepa10kCycle";
+function defaultCycle(){return CYCLES.find(c=>(c.showFrom||c.from)<=TODAY&&TODAY<=c.to)||CYCLES.find(c=>(c.showFrom||c.from)<=TODAY)||CYCLES[CYCLES.length-1];}
+let CY=(()=>{try{const id=sessionStorage.getItem(CYC_KEY);return CYCLES.find(c=>c.id===id)||defaultCycle();}catch(e){return defaultCycle();}})();
+const PL=()=>CY.plan;
+const IS10=()=>CY.id==="10k";
+function renderCycBar(){
+  document.querySelectorAll("[data-cycbar]").forEach(el=>{el.innerHTML=`<span class="lab">Programme</span><div class="seg">${CYCLES.map(c=>`<button class="btn ${c.id===CY.id?"on":""}" data-cycle="${c.id}">${c.name}</button>`).join("")}</div>`;});
+  $("#brandTxt").innerHTML=IS10()?`Objectif 43:00<small>10 km HOKA Paris Centre</small>`:`Hiver 2026<small>Entretien & progression · réf. 42'32</small>`;
+}
+function setCycle(id){
+  const c=CYCLES.find(x=>x.id===id);if(!c||c===CY)return;
+  CY=c;try{sessionStorage.setItem(CYC_KEY,id);}catch(e){}
+  week=curWeek();renderCycBar();refresh();renderPaces();renderGuide();
+}
+/* étiquette d'une zone : la FC pour les zones pilotées au cœur, l'allure sinon */
+const zlab=z=>Z[z].hr?Z[z].fc+" (FC)":zr(z);
+
 /* ---------- DATES, TEXTES ET ZONES QUI DÉPENDENT DU SUIVI ---------- */
-const RACE_DAY="2026-11-15",LAST_MOVE="2026-11-14";
-const HARD=new Set(["frac","spec","seuil","test","race"]);
+const RACE_DAY="2026-11-15";
 const mv=s=>state.moves&&state.moves[s.id]?` <span class="badge" style="border:1px solid #3a4a60;color:var(--mut);text-transform:none;margin-left:4px">déplacée</span>`:"";
 /* textes d'une phase : l'allure de course est remplacée par celle du test 5 km quand il est saisi */
 function lines(s,b){
@@ -38,10 +55,11 @@ function lines(s,b){
 function zr(z){const rp=racePace();return z==="Z4"&&rp.src==="test"?pace(rp.p-2)+" – "+pace(rp.p+2):Z[z].r;}
 function moveSession(id,date){
   const s=ALL.find(x=>x.id===id);state.moves=state.moves||{};
-  if(!s||!date||date<TODAY||date>LAST_MOVE){toast("Choisis une date entre aujourd'hui et la veille de la course");return;}
-  const others=ALL.filter(x=>x.id!==id&&!state.done[x.id]);
+  const c=s&&cycleOf(s);
+  if(!s||!date||date<TODAY||date>c.lastMove){toast(c&&c.id==="10k"?"Choisis une date entre aujourd'hui et la veille de la course":"Choisis une date entre aujourd'hui et le "+fdate(c?c.lastMove:TODAY,{day:"numeric",month:"long"}));return;}
+  const others=c.all.filter(x=>x.id!==id&&!state.done[x.id]);
   const same=others.find(x=>sdate(x)===date);
-  const near=HARD.has(s.type)&&others.find(x=>HARD.has(x.type)&&Math.abs((D(sdate(x))-D(date))/864e5)<=1);
+  const near=s.hard&&others.find(x=>x.hard&&Math.abs((D(sdate(x))-D(date))/864e5)<=1);
   const msg=same?`« ${same.title} » est déjà prévue ce jour-là.`:near?`« ${near.title} » (séance intense) est prévue ${sdate(near)===date?"le même jour":"la veille ou le lendemain"} : le plan évite deux séances dures consécutives.`:"";
   if(msg&&!confirm(msg+"\nDéplacer quand même ?"))return;
   if(date===s.date)delete state.moves[id];else state.moves[id]=date;
@@ -50,49 +68,85 @@ function moveSession(id,date){
 function unmoveSession(id){if(state.moves)delete state.moves[id];save();refresh();openS(id);toast("Date d'origine rétablie");}
 
 /* ---------- DASHBOARD ---------- */
+/* chrono du test 5 km du 31 décembre, saisi dans le champ « durée » de la séance */
+function testH(){const l=state.logs.h7b,t=l&&parseT(l.dur);return t&&t>=900&&t<=1800?t:null;}
+function testVerdict(t){return t<=1215?["Progression","#22c55e"]:t<=1245?["Niveau maintenu","#a855f7"]:["Légère baisse, rattrapable","#f59e0b"];}
 function renderDash(){
-  const race=new Date("2026-11-15T09:30:00"),now=new Date();
-  const days=Math.ceil((race-now)/864e5);
+  const MAIN=CY.main,P=PL(),now=new Date();
   const doneN=MAIN.filter(s=>state.done[s.id]).length;
   const totKm=MAIN.reduce((a,s)=>a+s.d,0),totT=MAIN.reduce((a,s)=>a+s.t,0);
-  const dKm=ALL.filter(s=>state.done[s.id]).reduce((a,s)=>a+doneKm(s),0);
+  const dKm=CY.all.filter(s=>state.done[s.id]).reduce((a,s)=>a+doneKm(s),0);
   const cw=curWeek();
-  $("#heroChips").innerHTML=(days>0?`<span class="chip">⏱ <b>J-${days}</b></span>`:days>-1?`<span class="chip">🏁 <b>C'est le jour J</b></span>`:`<span class="chip">🏁 Course terminée</span>`)+
-   `<span class="chip">Semaine <b>${cw}</b> / 4 · ${PLAN[cw-1].phase}</span><span class="chip">${km(totKm)} km · ${dur(totT)} au programme</span>`;
+  let chip0;
+  if(IS10()){
+    const days=Math.ceil((new Date("2026-11-15T09:30:00")-now)/864e5);
+    $("#heroEye").textContent="Dim. 15 novembre 2026 · départ 9h30 · Rivoli → Opéra";
+    $("#heroBig").innerHTML="43:00<span>sur 10 km</span>";
+    $("#heroSub").innerHTML=`Allure cible <b style="color:var(--text)">4'18/km</b> · 4 semaines · 12 séances · mardi / jeudi / dimanche`;
+    chip0=days>0?`<span class="chip">⏱ <b>J-${days}</b></span>`:days>-1?`<span class="chip">🏁 <b>C'est le jour J</b></span>`:`<span class="chip">🏁 Course terminée · 42'32</span>`;
+  }else{
+    const days=Math.ceil((new Date(CY.to+"T23:59:00")-now)/864e5);
+    $("#heroEye").textContent="16 novembre → 31 décembre 2026 · après le 10 km HOKA";
+    $("#heroBig").innerHTML="42:32<span>ta référence</span>";
+    $("#heroSub").innerHTML=`Facile à la FC <b style="color:var(--text)">≤ 138 bpm</b>, qualité à l'allure · ${P.length} semaines · ${MAIN.length} séances · mardi / jeudi / dimanche`;
+    chip0=TODAY<CY.from?`<span class="chip">🌱 Début le <b>lundi 16 nov.</b></span>`:days>0?`<span class="chip">⏳ <b>${days} jours</b> jusqu'au 31 déc.</span>`:`<span class="chip">✅ Cycle terminé</span>`;
+  }
+  $("#heroChips").innerHTML=chip0+`<span class="chip">Semaine <b>${cw}</b> / ${P.length} · ${P[cw-1].phase}</span><span class="chip">${km(totKm)} km · ${dur(totT)} au programme</span>`;
   const pct=doneN/MAIN.length,R=52,C=2*Math.PI*R;
   $("#ring").innerHTML=`<defs><linearGradient id="rg" x1="0" x2="1"><stop offset="0" stop-color="#ff6a2b"/><stop offset="1" stop-color="#ffb020"/></linearGradient></defs><circle cx="60" cy="60" r="${R}" fill="none" stroke="#1d2734" stroke-width="12"/><circle cx="60" cy="60" r="${R}" fill="none" stroke="url(#rg)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pct)}" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .6s"/><text x="60" y="58" text-anchor="middle" fill="#e8eef6" font-size="26" font-weight="900">${Math.round(pct*100)}%</text><text x="60" y="76" text-anchor="middle" fill="#8b9bb0" font-size="11" font-weight="600">du plan</text>`;
   $("#kDone").textContent=doneN+" / "+MAIN.length;
   $("#kKm").textContent=km(dKm)+" km";
-  $("#kKmSub").textContent="sur "+km(totKm)+" km prévus";
-  const rp=racePace();
-  $("#kRace").textContent=pace(rp.p);
-  $("#kRaceSub").textContent=rp.src==="test"?"d'après ton test 5 km · ≈ "+clock(rp.p*10-2):"provisoire · fixée au test du 8 nov.";
+  $("#kKmSub").textContent="sur "+km(totKm)+" km prévus (estimation)";
+  const kp=(l,v,s,st)=>`<div class="card kpi"><div class="lab">${l}</div><div class="val"${st||""}>${v}</div><div class="sub">${s}</div></div>`;
+  if(IS10()){
+    const rp=racePace();
+    $("#kpiRow").innerHTML=kp("Dernier 10 km","46'26","10 km Adidas · 4'39/km")+kp("Équivalent semi","≈ 45'35","1h40'37 converti (Riegel)")+kp("Écart à combler","−3'26","−7,4 % vs 46'26 · −20 s/km")+kp("Allure de course",pace(rp.p),rp.src==="test"?"d'après ton test 5 km · ≈ "+clock(rp.p*10-2):"provisoire · fixée au test du 8 nov.");
+  }else{
+    const t=testH(),v=t&&testVerdict(t);
+    $("#kpiRow").innerHTML=kp("Référence 10 km","42'32","15 nov. · 4'15/km")+kp("Équivalent 5 km","≈ 20'24","42'32 ÷ 2,085")+kp("Plafond EF","≤ 138 bpm","zone 2 Garmin : 118 – 137")+kp("Test du 31 déc.",t?clock(t):"à venir",t?v[0]:"≤ 20'15 progrès · ≤ 20'45 maintenu",t?` style="color:${v[1]}"`:"");
+  }
   // next session
-  const nx=MAIN.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY).sort((a,b)=>sdate(a).localeCompare(sdate(b)))[0]||MAIN.find(s=>!state.done[s.id]);
-  $("#nextBox").innerHTML=nx?`<div class="note goal" style="--tc:${T[nx.type].c}"><div class="next"><div><div class="mut" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Prochaine séance · ${fdate(sdate(nx))}</div><div style="font-weight:800;font-size:16px;margin:2px 0">${nx.title}</div><div class="meta"><span><b>${dur(nx.t)}</b></span><span><b>${km(nx.d)} km</b></span></div></div><button class="btn pri" data-open="${nx.id}">Voir</button></div></div>`:`<div class="note">Toutes les séances sont cochées. Bravo !</div>`;
+  const nx=MAIN.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY).sort((a,b)=>sdate(a).localeCompare(sdate(b)))[0]||MAIN.find(s=>!state.done[s.id]&&sdate(s)>=TODAY);
+  $("#nextBox").innerHTML=nx?`<div class="note goal" style="--tc:${T[nx.type].c}"><div class="next"><div><div class="mut" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Prochaine séance · ${fdate(sdate(nx))}</div><div style="font-weight:800;font-size:16px;margin:2px 0">${nx.title}</div><div class="meta"><span><b>${dur(nx.t)}</b></span><span><b>${km(nx.d)} km</b></span></div></div><button class="btn pri" data-open="${nx.id}">Voir</button></div></div>`:`<div class="note">${doneN===MAIN.length?"Toutes les séances sont cochées. Bravo !":"Plus aucune séance à venir dans ce cycle."}</div>`;
   // phases
-  $("#phases").innerHTML=PLAN.map(w=>{const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]).length;return`<button class="phase ${w.n===cw?"cur":""}" data-week="${w.n}"><div class="wk">S${w.n} · ${fdate(w.mon,{day:"numeric",month:"short"})}</div><div class="nm">${w.phase}</div><div class="bar"><i style="width:${dn/ms.length*100}%"></i></div><div class="mut" style="font-size:12px;margin-top:6px">${dn}/${ms.length} séances · ${km(ms.reduce((a,s)=>a+s.d,0))} km</div></button>`;}).join("");
+  $("#phTitle").textContent=IS10()?"Les 4 phases":`Les ${P.length} semaines`;
+  $("#phases").innerHTML=P.map(w=>{const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]).length;return`<button class="phase ${w.n===cw?"cur":""}" data-week="${w.n}"><div class="wk">S${w.n} · ${fdate(w.mon,{day:"numeric",month:"short"})}</div><div class="nm">${w.phase}</div><div class="bar"><i style="width:${dn/ms.length*100}%"></i></div><div class="mut" style="font-size:12px;margin-top:6px">${dn}/${ms.length} séances · ${km(ms.reduce((a,s)=>a+s.d,0))} km</div></button>`;}).join("");
   renderVol();renderZones();renderReal();
 }
 function renderVol(){
-  const data=PLAN.map(w=>{const ms=w.sessions.filter(s=>!s.opt);return{n:w.n,p:ms.reduce((a,s)=>a+s.d,0),t:ms.reduce((a,s)=>a+s.t,0),d:w.sessions.filter(s=>state.done[s.id]).reduce((a,s)=>a+doneKm(s),0)};});
-  const mx=Math.max(...data.map(x=>Math.max(x.p,x.d)))*1.15,W=420,H=200,pad=28,bw=58,gap=(W-pad*2-bw*4)/3;
-  let g="";[0,10,20,30,40].forEach(v=>{if(v>mx)return;const y=H-24-(v/mx)*(H-50);g+=`<line x1="${pad-6}" x2="${W}" y1="${y}" y2="${y}" stroke="#1d2734"/><text x="${pad-10}" y="${y+4}" fill="#5f6f84" font-size="10" text-anchor="end">${v}</text>`;});
-  data.forEach((x,i)=>{const X=pad+i*(bw+gap),hp=(x.p/mx)*(H-50),hd=(Math.min(x.d,mx)/mx)*(H-50),base=H-24;
-    g+=`<rect x="${X}" y="${base-hp}" width="${bw}" height="${hp}" rx="8" fill="rgba(255,255,255,.03)" stroke="#3a4a60" stroke-dasharray="4 3"/>`;
-    if(x.d>0)g+=`<rect x="${X+5}" y="${base-hd}" width="${bw-10}" height="${hd}" rx="6" fill="url(#vg)"/>`;
-    g+=`<text x="${X+bw/2}" y="${base-hp-8}" fill="#e8eef6" font-size="12" font-weight="800" text-anchor="middle">${km(x.p)}</text><text x="${X+bw/2}" y="${H-6}" fill="#8b9bb0" font-size="11" font-weight="700" text-anchor="middle">S${x.n} · ${dur(x.t)}</text>`;});
+  const P=PL(),N=P.length;
+  const data=P.map(w=>{const ms=w.sessions.filter(s=>!s.opt);return{n:w.n,p:ms.reduce((a,s)=>a+s.d,0),t:ms.reduce((a,s)=>a+s.t,0),d:w.sessions.filter(s=>state.done[s.id]).reduce((a,s)=>a+doneKm(s),0)};});
+  const mx=Math.max(...data.map(x=>Math.max(x.p,x.d)))*1.15,W=420,H=N>4?214:200,base=H-(N>4?38:24),pad=28,bw=Math.min(58,(W-pad*2)/N*.72),gap=N>1?(W-pad*2-bw*N)/(N-1):0;
+  let g="";[0,10,20,30,40].forEach(v=>{if(v>mx)return;const y=base-(v/mx)*(base-26);g+=`<line x1="${pad-6}" x2="${W}" y1="${y}" y2="${y}" stroke="#1d2734"/><text x="${pad-10}" y="${y+4}" fill="#5f6f84" font-size="10" text-anchor="end">${v}</text>`;});
+  data.forEach((x,i)=>{const X=pad+i*(bw+gap),hp=(x.p/mx)*(base-26),hd=(Math.min(x.d,mx)/mx)*(base-26),cx=X+bw/2;
+    g+=`<rect x="${X}" y="${base-hp}" width="${bw}" height="${hp}" rx="${N>4?6:8}" fill="rgba(255,255,255,.03)" stroke="#3a4a60" stroke-dasharray="4 3"/>`;
+    if(x.d>0)g+=`<rect x="${X+4}" y="${base-hd}" width="${bw-8}" height="${hd}" rx="5" fill="url(#vg)"/>`;
+    g+=`<text x="${cx}" y="${base-hp-8}" fill="#e8eef6" font-size="${N>4?11:12}" font-weight="800" text-anchor="middle">${N>4?Math.round(x.p):km(x.p)}</text>`;
+    g+=N>4?`<text x="${cx}" y="${base+16}" fill="#8b9bb0" font-size="11" font-weight="800" text-anchor="middle">S${x.n}</text><text x="${cx}" y="${base+30}" fill="#5f6f84" font-size="10" font-weight="600" text-anchor="middle">${dur(x.t)}</text>`:`<text x="${cx}" y="${H-6}" fill="#8b9bb0" font-size="11" font-weight="700" text-anchor="middle">S${x.n} · ${dur(x.t)}</text>`;});
   $("#volChart").innerHTML=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block"><defs><linearGradient id="vg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff6a2b"/><stop offset="1" stop-color="#ffb020"/></linearGradient></defs>${g}</svg>`;
 }
 function renderZones(){
-  const tz={};MAIN.forEach(s=>s.segs.forEach(x=>{if(x.z==="W")return;tz[x.z]=(tz[x.z]||0)+st(x).t;}));
-  const tot=Object.values(tz).reduce((a,b)=>a+b,0),order=["Z1","Z2","Z3","Z4","Z5","Z6"];
-  const easy=((tz.Z1||0)+(tz.Z2||0))/tot;
+  const tz={};CY.main.forEach(s=>s.segs.forEach(x=>{if(x.z==="W")return;tz[x.z]=(tz[x.z]||0)+st(x).t;}));
+  const tot=Object.values(tz).reduce((a,b)=>a+b,0),order=CY.zones;
+  const easy=order.slice(0,2).reduce((a,z)=>a+(tz[z]||0),0)/tot;
   $("#zoneChart").innerHTML=`<div style="display:flex;height:22px;border-radius:8px;overflow:hidden;gap:2px">${order.map(z=>`<div title="${Z[z].n}" style="flex:${tz[z]||0};background:${Z[z].c}"></div>`).join("")}</div>
-  <div style="margin-top:14px;display:grid;gap:7px">${order.map(z=>`<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;font-size:13.5px"><span><i class="dot" style="background:${Z[z].c};margin-right:8px"></i>${Z[z].n}</span><span class="mut">${dur(tz[z]||0)}</span><b style="width:42px;text-align:right">${Math.round((tz[z]||0)/tot*100)}%</b></div>`).join("")}</div>
-  <div class="note" style="margin-top:14px;font-size:13.5px"><b>${Math.round(easy*100)} % du temps en intensité facile.</b> C'est voulu : l'essentiel du gain vient des séances dures, à condition que tout le reste soit réellement facile.</div>`;
+  <div style="margin-top:14px;display:grid;gap:7px">${order.map(z=>`<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;font-size:13.5px"><span><i class="dot" style="background:${Z[z].c};margin-right:8px"></i>${Z[z].n}${Z[z].hr?` <span class="mut" style="font-size:12px">${Z[z].fc}</span>`:""}</span><span class="mut">${dur(tz[z]||0)}</span><b style="width:42px;text-align:right">${Math.round((tz[z]||0)/tot*100)}%</b></div>`).join("")}</div>
+  <div class="note" style="margin-top:14px;font-size:13.5px"><b>${Math.round(easy*100)} % du temps en intensité facile${IS10()?"":" (sous 138 bpm)"}.</b> C'est voulu : l'essentiel du gain vient des séances dures, à condition que tout le reste soit réellement facile.</div>`;
 }
 function renderReal(){
+  $("#realTitle").textContent=IS10()?"Projection honnête":"Le cycle en bref";
+  if(!IS10()){
+    const cps=CY.main.filter(s=>s.cp);
+    $("#realism").innerHTML=`<div class="grid g2"><div class="prose"><p><b>Objectif : arriver au 1er janvier avec au moins ton niveau du 15 novembre</b>, en gardant le plaisir de courir.</p>
+    <ul><li><b>3 séances par semaine</b> : mardi qualité (fractionné, fartlek), jeudi EF, dimanche sortie longue, parfois avec du seuil.</li>
+    <li><b>Charge en vagues</b> : S1 récupération, S2 à S4 montée progressive, S5 allégée, S6 charge modérée pendant les fêtes, S7 bilan.</li>
+    <li><b>Le facile se pilote à la FC</b> : plafond de 138 bpm (tes zones Garmin) pour la récupération, l'EF et les parties faciles des sorties longues. Les fichiers de la montre contiennent cette cible.</li>
+    <li><b>Le dur se pilote à l'allure</b>, recalculée sur ton 42'32 : seuil 4'27 – 4'32, allure 5 km 4'02 – 4'07.</li></ul></div>
+    <div><div class="mut" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Points de contrôle</div>
+    ${cps.map(s=>{const l=state.logs[s.id]||{},dn=state.done[s.id];return`<div class="note" style="margin-bottom:8px;cursor:pointer" data-open="${s.id}"><span class="cpTag">CP${s.cp}</span> <b>${fdate(sdate(s),{weekday:"short",day:"numeric",month:"short"})} · ${s.title}</b><div class="mut" style="font-size:12.5px;margin-top:4px">${dn?"✓ Réalisée"+(l.fc?" · FC moy. "+l.fc:"")+(l.rpe?" · RPE "+l.rpe:""):"À venir"}${s.id==="h7b"&&testH()?" · "+clock(testH())+" : "+testVerdict(testH())[0]:""}</div></div>`;}).join("")}
+    <p class="mut" style="font-size:12.5px">Note ta FC et ton RPE dans chaque fiche : c'est ce qui permet d'ajuster la suite plutôt qu'au feeling.</p></div></div>`;
+    return;
+  }
   const rows=[["≤ 43'00","Objectif atteint",25,"#a855f7"],["43'01 – 43'59","Proche, record net",40,"#22c55e"],["44'00 – 45'00","Progression solide",28,"#f59e0b"],["> 45'00","Jour sans",7,"#94a3b8"]];
   $("#realism").innerHTML=`<div class="grid g2"><div class="prose"><p><b>43' est ambitieux mais crédible.</b> Ta projection centrale aujourd'hui se situe vers <b>43'45 – 44'30</b>. Le scénario 43' demande que le bloc se passe bien et que le test 5 km du 8 novembre descende sous 20'35.</p>
   <p><b>Ce qui joue pour toi</b></p><ul><li>Ton semi d'aujourd'hui vaut déjà ≈ 45'35 sur 10 km, alors que tu étais en fin de prépa longue.</li><li>VO₂max estimée à 51 : le moteur est là (les montres sont souvent optimistes, mais l'écart avec tes chronos indique une marge).</li><li>Un parcours plat et un affûtage pensé pour arriver frais.</li></ul>
@@ -102,13 +156,13 @@ function renderReal(){
 }
 
 /* ---------- PLAN VIEW ---------- */
-function curWeek(){if(TODAY<PLAN[1].mon)return 1;if(TODAY<PLAN[2].mon)return 2;if(TODAY<PLAN[3].mon)return 3;return 4;}
-let week=state.week||curWeek();
+function curWeek(){let n=1;PL().forEach(w=>{if(w.mon<=TODAY)n=w.n;});return n;}
+let week=curWeek();
 function renderPlan(){
-  const w=PLAN[week-1];
-  $("#weekNav").innerHTML=`<button class="wbtn arrow" data-wnav="-1" ${week===1?"disabled":""}>←</button>`+PLAN.map(x=>`<button class="wbtn ${x.n===week?"on":""}" data-week="${x.n}">S${x.n}</button>`).join("")+`<button class="wbtn arrow" data-wnav="1" ${week===4?"disabled":""}>→</button><span class="mut" style="margin-left:6px;font-weight:600;font-size:14px">${fdate(w.mon,{day:"numeric",month:"long"})} – ${fdate(w.sessions[w.sessions.length-1].date,{day:"numeric",month:"long"})}</span>`;
+  const P=PL(),w=P[week-1];
+  $("#weekNav").innerHTML=`<button class="wbtn arrow" data-wnav="-1" ${week===1?"disabled":""}>←</button>`+P.map(x=>`<button class="wbtn ${x.n===week?"on":""}" data-week="${x.n}">S${x.n}</button>`).join("")+`<button class="wbtn arrow" data-wnav="1" ${week===P.length?"disabled":""}>→</button><span class="mut" style="margin-left:6px;font-weight:600;font-size:14px">${fdate(w.mon,{day:"numeric",month:"long"})} – ${fdate((()=>{const d=D(w.mon);d.setDate(d.getDate()+6);const e=d.toISOString().slice(0,10);return e>CY.to?CY.to:e;})(),{day:"numeric",month:"long"})}</span>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]).length,wkKm=ms.reduce((a,s)=>a+s.d,0),wkT=ms.reduce((a,s)=>a+s.t,0);
-  const maxKm=Math.max(...PLAN.map(x=>x.sessions.filter(s=>!s.opt).reduce((a,s)=>a+s.d,0)));
+  const maxKm=Math.max(...P.map(x=>x.sessions.filter(s=>!s.opt).reduce((a,s)=>a+s.d,0)));
   $("#weekHead").innerHTML=`<div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap"><div style="flex:1;min-width:240px"><div class="eyebrow">Semaine ${w.n} · ${w.short}</div><h2 style="margin:4px 0 6px">${w.phase}</h2><div class="mut">${w.goal}</div></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div class="stat"><div class="l">Distance</div><div class="v">${km(wkKm)} km</div></div><div class="stat"><div class="l">Durée</div><div class="v">${dur(wkT)}</div></div><div class="stat"><div class="l">Faites</div><div class="v">${dn} / ${ms.length}</div></div><div class="stat" style="min-width:120px"><div class="l">Charge relative</div><div class="bar" style="margin-top:8px"><i style="width:${wkKm/maxKm*100}%"></i></div></div></div></div>`;
   // strip
@@ -136,7 +190,7 @@ function openS(id){
    <h2>${s.title}</h2><div class="mut" style="text-transform:capitalize">${fdate(sdate(s),{weekday:"long",day:"numeric",month:"long"})} · semaine ${s.wk}${state.moves&&state.moves[s.id]?` · <span style="text-transform:none">prévue le ${fdate(s.date,{day:"numeric",month:"short"})}</span>`:""}</div>
    <div class="stats"><div class="stat"><div class="l">Durée</div><div class="v">${dur(s.t)}</div></div><div class="stat"><div class="l">Distance</div><div class="v">${km(s.d)} km</div></div>${s.race?`<div class="stat"><div class="l">Allure course</div><div class="v">${pace(rp.p)}/km</div></div>`:""}</div>
    <div style="margin-top:14px">${profile(s.segs,90,"profBig")}</div>
-   <div class="legend" style="margin-top:8px">${zs.map(z=>`<span><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n} · ${zr(z)}</span>`).join("")}</div></div>
+   <div class="legend" style="margin-top:8px">${zs.map(z=>`<span><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n} · ${zlab(z)}</span>`).join("")}</div></div>
   <div class="pbd">
    <div class="note goal"><b>Objectif physiologique</b><br>${s.goal}</div>
    <div class="sec"><h4>Déroulé</h4><div class="steps">${phaseBlock("Échauffement",s.wu,"#22c55e",s)}${phaseBlock("Corps de séance",s.main,mainCol,s)}${phaseBlock("Retour au calme",s.cd,"#94a3b8",s)}</div></div>
@@ -145,8 +199,8 @@ function openS(id){
    <div class="sec"><h4>Consignes</h4><ul style="margin:0;padding-left:18px">${s.tips.map(x=>`<li style="margin:4px 0">${x}</li>`).join("")}</ul></div>
    ${s.cpTxt?`<div class="sec"><div class="note cp"><b>Point de contrôle ${s.cp}</b><br>${s.cpTxt}${s.cp===3?`<div style="margin-top:10px"><button class="btn pri" data-gotest>Ouvrir le calculateur</button></div>`:""}</div></div>`:""}
    <div class="sec"><div class="note warn"><b>Fatigue ou séance raccourcie</b><br>${s.tired}</div></div>
-   ${(s.id==="w4c"||dn)?"":`<div class="sec"><h4>Déplacer la séance</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="date" id="mvDate" value="${sdate(s)<TODAY?TODAY:sdate(s)}" min="${TODAY}" max="${LAST_MOVE}" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:inherit"><button class="btn pri" data-move="${id}">Déplacer</button>${state.moves&&state.moves[id]?`<button class="btn" data-unmove="${id}">Date prévue (${fdate(s.date,{day:"numeric",month:"short"})})</button>`:""}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Le calendrier (.ics) et les fichiers de la montre suivent la nouvelle date. Évite deux séances intenses de suite.</div></div></div>`}
-   <div class="sec"><h4>Sur ma montre</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · allures et répétitions incluses</span></div>${FIT_HELP}</div></div>
+   ${(s.id==="w4c"||dn||cycleOf(s).lastMove<TODAY)?"":`<div class="sec"><h4>Déplacer la séance</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="date" id="mvDate" value="${sdate(s)<TODAY?TODAY:sdate(s)}" min="${TODAY}" max="${cycleOf(s).lastMove}" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:inherit"><button class="btn pri" data-move="${id}">Déplacer</button>${state.moves&&state.moves[id]?`<button class="btn" data-unmove="${id}">Date prévue (${fdate(s.date,{day:"numeric",month:"short"})})</button>`:""}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Le calendrier (.ics) et les fichiers de la montre suivent la nouvelle date. Évite deux séances intenses de suite.</div></div></div>`}
+   <div class="sec"><h4>Sur ma montre</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · ${s.cy==="10k"?"allures":"cibles FC et allures"} et répétitions incluses</span></div>${FIT_HELP}</div></div>
    <div class="sec"><h4>Mon ressenti</h4><div class="form">
     <div class="fld"><label>Distance réelle (km)</label><input id="lDist" inputmode="decimal" value="${l.dist||""}" placeholder="${km(s.d)}"></div>
     <div class="fld"><label>Durée (h:mm:ss)</label><input id="lDur" value="${l.dur||""}" placeholder="${clock(s.t).replace("'",":")}"></div>
@@ -162,7 +216,19 @@ function closeS(){$("#ov").classList.remove("on");document.body.style.overflow="
 
 /* ---------- PACES ---------- */
 function renderPaces(){
+  const h=!IS10();
+  $("#pacesProse10k").style.display=h?"none":"";$("#pacesProseH").style.display=h?"":"none";$("#paces10k").style.display=h?"none":"";
+  if(h){
+    $("#pacesProseH").innerHTML=`<h3>La logique des intensités</h3><p><b>Le facile se pilote à la FC, le dur à l'allure.</b> Récupération, endurance fondamentale et parties faciles des sorties longues : <b>plafond de 138 bpm</b>, quelle que soit l'allure. Fractionnés, fartlek et seuil : à l'allure, car sur des efforts de quelques minutes la FC réagit trop lentement pour guider l'effort.</p>
+    <p>Les allures de qualité sont recalculées sur ton 10 km du 15 novembre (<b>42'32, 4'15/km</b>) : seuil 4'27 – 4'32, allure 10 km 4'13 – 4'17, allure 5 km 4'02 – 4'07, VMA courte 3'45 – 3'55.</p>
+    <p>Les allures indiquées pour l'EF et la récupération ne servent qu'à <b>estimer les distances</b>. Si tu cours plus lentement que prévu sous 138 bpm, c'est normal, et c'est exactement le but.</p>
+    <div class="tscroll" style="margin-top:10px"><table><tr><th>Tes zones Garmin</th>${GARMIN_ZONES.map(g=>`<th>${g[0]}</th>`).join("")}</tr><tr><td class="mut">bpm</td>${GARMIN_ZONES.map(g=>`<td class="num">${g[1]}</td>`).join("")}</tr></table></div>`;
+    $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>FC</th><th>Zone Garmin</th><th>Allure</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+CY.zones.map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num">${Z[z].hr?`<b>${Z[z].fc}</b>`:Z[z].fc}</td><td class="mut">${Z[z].gz}</td><td class="num">${Z[z].hr?`<span class="mut">${Z[z].r}</span>`:`<b>${Z[z].r}</b>`}</td><td class="num">${Z[z].rpe}</td><td>${Z[z].feel}</td><td class="mut">${Z[z].use}</td></tr>`).join("");
+    $("#zoneNote").innerHTML="En gras : la référence de chaque zone. FC pour la récupération, l'EF et l'endurance active ; allure pour le seuil et au-delà. Les FC de seuil et d'allure 10 km sont des repères observés sur ton 10 km (FC moyenne 180, max 189) et sur ton tempo d'octobre (4'35 à 178).";
+  }else{
+  $("#zoneNote").innerHTML="%FCmax indicatifs, seulement si tu connais ta vraie FCmax (pas la formule 220 − âge). Pour l'EF, le test de la conversation prime sur la montre. Sur les fractions de moins de 2 min, la FC n'a pas le temps de monter : fie-toi à l'allure.";
   $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>Allure</th><th>%FCmax</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+["Z1","Z2","Z3","Z4","Z5","Z6"].map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num">${zr(z)}</td><td class="num">${Z[z].fc}</td><td class="num">${Z[z].rpe}</td><td>${Z[z].feel}</td><td class="mut">${Z[z].use}</td></tr>`).join("");
+  }
   $("#t5").value=state.test||"";$("#tgt").value=state.target||"43:00";
   renderCalc();renderSplits();
 }
@@ -239,19 +305,29 @@ function renderGuide(){
   ["Les 3 points de contrôle",`<ul><li><b>CP1 · dim. 25 oct. · Seuil 3 × 8'</b> : la récupération du semi est-elle terminée ? Compare la FC du 3e bloc avec ton tempo du 1er octobre.</li><li><b>CP2 · dim. 1er nov. · 3 × 2 km à 4'18</b> : l'allure cible est-elle tenable ? RPE et dérive de FC sur le 3e bloc.</li><li><b>CP3 · dim. 8 nov. · Test 5 km</b> : la décision. Le calculateur fixe ton allure de course.</li></ul><p>Note ton ressenti dans chaque fiche (FC, RPE, notes) : c'est ce qui rend les ajustements fiables plutôt qu'au feeling.</p>`],
   ["Jour J : la check-list",`<ul><li><b>Samedi</b> : repas du soir riche en glucides et connu, coucher habituel, matériel prêt (dossard, épingles, chaussures testées).</li><li><b>6h30</b> : petit-déjeuner habituel, 3 h avant le départ.</li><li><b>8h45</b> : arrivée vers la place du Palais-Royal, consigne.</li><li><b>8h55</b> : échauffement de 15' (voir la fiche de course).</li><li><b>9h20</b> : dans le sas, garde une couche jetable si le temps est froid.</li><li><b>En course</b> : tours manuels aux panneaux, premier kilomètre retenu, la course commence au 7e.</li></ul>`]
   ];
-  $("#guideGrid").innerHTML=g.map(x=>`<div class="card prose"><h3>${x[0]}</h3>${x[1]}</div>`).join("");
+  const gh=[
+  ["La structure de chaque semaine",`<p>Trois séances, trois rôles, au moins 48 h entre deux séances dures :</p><ul><li><b>Mardi : qualité</b>. Fractionné court ou long, fartlek, pyramides. Une séance différente chaque semaine.</li><li><b>Jeudi : EF</b>, toujours sous 138 bpm. Elle sert à récupérer du mardi et à préparer le dimanche.</li><li><b>Dimanche : sortie longue</b>, pure EF ou avec un travail inséré (seuil, progressif, alternance).</li></ul><p>S1 récupération, S2 à S4 montée progressive, S5 allégée (−25 %), S6 charge modérée, S7 bilan avec le test du 31 décembre.</p>`],
+  ["Piloter l'EF à la fréquence cardiaque",`<ul><li><b>Plafond : 138 bpm.</b> Au-dessus, ralentis. Si ça ne suffit pas, marche 20 à 30 secondes : c'est normal, surtout en côte.</li><li><b>Les 10 premières minutes</b>, la FC monte lentement : reste sous 128 bpm pendant l'échauffement.</li><li><b>La dérive cardiaque</b> est normale en fin de sortie longue : ton allure va baisser pour la même FC. Ne la combats pas.</li><li><b>Chaleur, fatigue, stress, manque de sommeil</b> font monter la FC : ce jour-là, tu cours plus lentement, et c'est la bonne intensité.</li><li><b>Capteur au poignet</b> : par temps froid, il peut afficher des valeurs aberrantes au début. Serre le bracelet, et en cas de doute fie-toi au test de la conversation.</li><li><b>Pourquoi c'est crucial</b> : une EF courue en zone 3 devient une séance d'endurance active. Elle fatigue sans développer la base aérobie, et fait rater les séances de qualité.</li></ul>`],
+  ["Sur la montre",`<ul><li>Les fichiers .fit contiennent une <b>cible de FC</b> pour l'échauffement, l'EF, la récupération et les sorties progressives : la montre vibre si tu dépasses le plafond.</li><li>Le <b>trot entre les fractions</b> et le retour au calme n'ont pas de cible : le cœur n'a pas le temps de redescendre, la montre sonnerait sans arrêt.</li><li>Fractionnés, fartlek et seuil gardent une <b>cible d'allure</b>. Sur piste, fais des tours manuels.</li><li>Les lignes droites n'ont pas de cible : sur 80 m, le GPS n'est pas fiable.</li></ul>`],
+  ["Séance manquée, fêtes, imprévus",`<ul><li><b>Mardi manqué</b> : décale-le au mercredi. Le jeudi devient 30' d'EF, le dimanche reste inchangé.</li><li><b>Jeudi manqué</b> : ne le rattrape pas.</li><li><b>Dimanche manqué</b> : fais-le le lundi, en EF pure si le mardi suit.</li><li><b>Pendant les fêtes</b>, déplace les séances librement dans la semaine, avec 48 h entre deux séances dures.</li><li><b>Plus de 5 jours d'arrêt</b> : reprends par 2 EF, puis la séance prévue avec un tiers de répétitions en moins.</li><li><b>Jamais deux séances dures deux jours de suite.</b></li></ul>`],
+  ["Fatigue et mollet : les signaux",`<div class="tscroll"><table><tr><th>Signal</th><th>Réponse</th></tr><tr><td>FC au-dessus de 138 à une allure qui passait sous 138 les semaines précédentes</td><td>Fatigue accumulée : la qualité suivante perd 1/3 des répétitions</td></tr><tr><td>FC au repos +7 bpm, échauffement pénible</td><td>Remplace la qualité par 30' d'EF</td></tr><tr><td>Mollet qui tire (≥ 3/10) ou douleur qui augmente en courant</td><td>Arrête. 2 à 3 jours sans courir, kiné si ça persiste</td></tr><tr><td>Rhume léger (au-dessus du cou)</td><td>EF possible, pas de qualité</td></tr><tr><td>Fièvre, poitrine, courbatures générales</td><td>Repos complet</td></tr></table></div><p style="margin-top:10px"><b>Mollet</b> : ne modifie pas ta foulée d'un coup, c'est ce qui l'a irrité le 1er novembre. Pour la cadence, vise 175 à 180 pas/min sur les lignes droites, sans forcer.</p>`],
+  ["Les 3 points de contrôle",`<ul><li><b>CP1 · dim. 29 nov. · Seuil 3 × 6'</b> : le seuil est-il intact après la course ? FC de fin du 3e bloc sous 178.</li><li><b>CP2 · dim. 13 déc. · 3 × 2000 m au seuil</b> : allure constante, dérive de 5 bpm maximum.</li><li><b>CP3 · jeu. 31 déc. · Test 5 km</b> : 20'15 ou moins = progression, jusqu'à 20'45 = niveau maintenu.</li></ul><p>Entre le chrono du test dans le champ « durée » de la séance : le tableau de bord affiche le verdict.</p>`],
+  ["Renforcement (conseillé)",`<p>2 × 15' par semaine, après la séance du jeudi et celle du dimanche :</p><ul><li><b>Mollets</b> : montées sur pointes de pied, descente lente sur 3 secondes, 3 × 12 par jambe (sur une marche).</li><li><b>Gainage</b> : planche face et côtés, 3 × 30 à 45".</li><li><b>Fentes avant</b> : 3 × 10 par jambe.</li><li><b>Pont fessier</b> sur une jambe : 3 × 10.</li></ul><p class="mut">Le renforcement des mollets est la meilleure prévention contre une récidive.</p>`]
+  ];
+  $("#guideGrid").innerHTML=(IS10()?g:gh).map(x=>`<div class="card prose"><h3>${x[0]}</h3>${x[1]}</div>`).join("");
 }
 
 /* ---------- EVENTS ---------- */
 function show(tab){setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis")initAnalysis();},0);document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo({top:0,behavior:"smooth"});}
 function refresh(){renderDash();renderPlan();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-tab],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(!el)return;
   if(el.dataset.tab){show(el.dataset.tab);}
-  else if(el.dataset.week){week=+el.dataset.week;state.week=week;save();renderPlan();show("plan");}
-  else if(el.dataset.wnav){week=Math.min(4,Math.max(1,week+ +el.dataset.wnav));state.week=week;save();renderPlan();}
+  else if(el.dataset.week){week=+el.dataset.week;renderPlan();show("plan");}
+  else if(el.dataset.wnav){week=Math.min(PL().length,Math.max(1,week+ +el.dataset.wnav));renderPlan();}
+  else if(el.dataset.cycle){setCycle(el.dataset.cycle);}
   else if(el.dataset.open){openS(el.dataset.open);}
   else if(el.hasAttribute("data-close")){closeS();}
   else if(el.dataset.toggle){const id=el.dataset.toggle;state.done[id]=!state.done[id];if(!state.done[id])delete state.done[id];save();refresh();openS(id);toast(state.done[id]?"Séance validée 💪":"Séance décochée");}
@@ -287,5 +363,5 @@ $("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances c
 $("#fitHelpPlan").innerHTML=FIT_HELP;
 $("#bkFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;f.text().then(importBackup);e.target.value="";});
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
-renderDash();renderPlan();renderPaces();renderGuide();
+renderCycBar();renderDash();renderPlan();renderPaces();renderGuide();
 syncInit();

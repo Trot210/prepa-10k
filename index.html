@@ -17,7 +17,7 @@
 <body>
 <header class="top">
   <div class="wrap topin">
-    <div class="brand"><div class="logo">10K</div><div>Objectif 43:00<small>10 km HOKA Paris Centre</small></div></div>
+    <div class="brand"><div class="logo">10K</div><div id="brandTxt">Objectif 43:00<small>10 km HOKA Paris Centre</small></div></div>
     <nav class="tabs" id="tabs">
       <button class="tab on" data-tab="dash">Tableau de bord</button>
       <button class="tab" data-tab="plan">Programme</button>
@@ -32,11 +32,12 @@
 <main class="wrap">
   <!-- DASHBOARD -->
   <section class="view on" id="v-dash">
+    <div class="cycbar" data-cycbar></div>
     <div class="hero">
       <div class="card heroMain">
-        <div class="eyebrow">Dim. 15 novembre 2026 · départ 9h30 · Rivoli → Opéra</div>
-        <div class="big">43:00<span>sur 10 km</span></div>
-        <div class="mut" style="position:relative;z-index:1">Allure cible <b style="color:var(--text)">4'18/km</b> · 4 semaines · 12 séances · mardi / jeudi / dimanche</div>
+        <div class="eyebrow" id="heroEye"></div>
+        <div class="big" id="heroBig"></div>
+        <div class="mut" style="position:relative;z-index:1" id="heroSub"></div>
         <div class="chips" id="heroChips"></div>
       </div>
       <div class="card">
@@ -51,14 +52,9 @@
       </div>
     </div>
 
-    <div class="grid g4" style="margin-top:14px">
-      <div class="card kpi"><div class="lab">Dernier 10 km</div><div class="val">46'26</div><div class="sub">10 km Adidas · 4'39/km</div></div>
-      <div class="card kpi"><div class="lab">Équivalent semi</div><div class="val">≈ 45'35</div><div class="sub">1h40'37 converti (Riegel)</div></div>
-      <div class="card kpi"><div class="lab">Écart à combler</div><div class="val">−3'26</div><div class="sub">−7,4 % vs 46'26 · −20 s/km</div></div>
-      <div class="card kpi"><div class="lab">Allure de course</div><div class="val" id="kRace">4'18</div><div class="sub" id="kRaceSub">provisoire · fixée au test du 8 nov.</div></div>
-    </div>
+    <div class="grid g4" style="margin-top:14px" id="kpiRow"></div>
 
-    <h2>Les 4 phases</h2>
+    <h2 id="phTitle">Les 4 phases</h2>
     <div class="phases" id="phases"></div>
 
     <div class="grid g2" style="margin-top:14px">
@@ -69,17 +65,18 @@
       </div>
       <div class="card">
         <h3>Répartition des intensités</h3>
-        <div class="mut" style="font-size:13px;margin-bottom:12px">Temps total passé dans chaque zone sur la préparation</div>
+        <div class="mut" style="font-size:13px;margin-bottom:12px">Temps total passé dans chaque zone sur le cycle</div>
         <div id="zoneChart"></div>
       </div>
     </div>
 
-    <h2>Projection honnête</h2>
+    <h2 id="realTitle">Projection honnête</h2>
     <div class="card" id="realism"></div>
   </section>
 
   <!-- PLAN -->
   <section class="view" id="v-plan">
+    <div class="cycbar" data-cycbar></div>
     <div class="weekNav" id="weekNav"></div>
     <div class="card" style="margin-top:14px" id="weekHead"></div>
     <div class="strip" id="strip"></div>
@@ -89,7 +86,7 @@
     </div>
     <h2>Exporter mes séances</h2>
     <div class="card">
-      <p class="mut" style="margin-top:0">Chaque séance devient un entraînement structuré pour ta Forerunner 55 (échauffement, répétitions, allures cibles). Rien n'est envoyé sur internet : les fichiers sont générés ici.</p>
+      <p class="mut" style="margin-top:0">Chaque séance devient un entraînement structuré pour ta Forerunner 55 (échauffement, répétitions, cibles de FC pour le facile et d'allure pour le travail). Rien n'est envoyé sur internet : les fichiers sont générés ici.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" data-zipfit>⌚ Séances à venir pour ma montre (.zip)</button><button class="btn" data-ics>📅 Calendrier (.ics)</button></div>
       <p class="mut" style="font-size:12.5px;margin:10px 0 0">Calendrier : créneau 11h–13h (course à 9h30), rappel la veille à 20h et 1 h avant. Seules les séances à venir sont exportées, avec leur date actuelle.</p>
       <div id="fitHelpPlan" style="margin-top:12px"></div>
@@ -98,18 +95,21 @@
 
   <!-- PACES -->
   <section class="view" id="v-paces">
-    <div class="card prose">
+    <div class="cycbar" data-cycbar></div>
+    <div class="card prose" id="pacesProse10k">
       <h3>La logique des allures</h3>
       <p>Les allures d'entraînement sont calées sur <b>ta forme actuelle</b> (≈ 45'30 sur 10 km d'après ton semi), pas sur l'objectif. S'entraîner au seuil ou en VMA à des allures « de 43' » alors que tu vaux 45'30 te ferait travailler dans la mauvaise filière et accumuler de la fatigue inutile.</p>
       <p>Seule exception, volontaire : <b>l'allure 10 km cible (4'18)</b>. On la travaille en blocs fractionnés avec récupération, pour que ton corps l'apprenne avant d'en être capable en continu. Ce qui progresse au fil des semaines, ce n'est donc pas l'allure, c'est <b>le volume passé à 4'18</b> : 0 km (S1) → 6 km en 3 blocs (S2) → test (S3) → 3 km de rappel (S4).</p>
       <p>Les allures ne bougent qu'une fois : en semaine 4, l'allure de course est recalée sur ton test 5 km du 8 novembre.</p>
     </div>
+    <div class="card prose" id="pacesProseH"></div>
     <div class="card" style="margin-top:14px">
       <h3>Tes zones</h3>
       <div class="tscroll"><table id="zoneTable"></table></div>
-      <p class="mut" style="font-size:12.5px;margin:10px 0 0">%FCmax indicatifs, seulement si tu connais ta vraie FCmax (pas la formule 220 − âge). Pour l'EF, le test de la conversation prime sur la montre. Sur les fractions de moins de 2 min, la FC n'a pas le temps de monter : fie-toi à l'allure.</p>
+      <p class="mut" style="font-size:12.5px;margin:10px 0 0" id="zoneNote">%FCmax indicatifs, seulement si tu connais ta vraie FCmax (pas la formule 220 − âge). Pour l'EF, le test de la conversation prime sur la montre. Sur les fractions de moins de 2 min, la FC n'a pas le temps de monter : fie-toi à l'allure.</p>
     </div>
 
+    <div id="paces10k">
     <h2>Calculateur du test 5 km <span class="cpTag">CP3</span></h2>
     <div class="card">
       <p class="mut" style="margin-top:0">Entre ton chrono du test du dimanche 8 novembre. Le calculateur projette ton 10 km (× 2,085) et fixe ton allure de course.</p>
@@ -122,6 +122,7 @@
       <div class="calcIn" style="margin-bottom:14px"><span class="mut" style="font-weight:600">Temps visé</span><input id="tgt" value="43:00"><button class="btn" id="tgtBtn">Mettre à jour</button></div>
       <div class="split" id="splits"></div>
       <p class="mut" style="font-size:13px;margin:12px 0 0">Départ 2 s plus lent que l'allure (foule, adrénaline), allure stable du km 2 au km 8, puis accélération. Fais des tours manuels à chaque panneau : le GPS dérive entre les immeubles du centre de Paris.</p>
+    </div>
     </div>
   </section>
 
@@ -153,6 +154,7 @@
 
   <!-- GUIDE -->
   <section class="view" id="v-guide">
+    <div class="cycbar" data-cycbar></div>
     <div class="grid g2" id="guideGrid"></div>
   </section>
 </main>
@@ -171,6 +173,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/plan.js"></script>
+<script src="js/plan-hiver.js"></script>
 <script src="js/export.js"></script>
 <script src="js/config.js"></script>
 <script src="js/sync.js"></script>
