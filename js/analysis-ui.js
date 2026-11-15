@@ -39,22 +39,22 @@ function clearHover(){const c=HOV.c;if(!c)return;["xl","dp","dh"].forEach(k=>c[k
 
 /* ---------- graphique principal : allure, FC, altitude ---------- */
 function mainChart(a){
-  const g=a.grid,W=920,H=340,L=54,R=a.hasHr?54:16,Tp=16,B=32,iw=W-L-R,ih=H-Tp-B,Dm=a.dist;
+  const nw=innerWidth<620,fs=nw?15:11,g=a.grid,W=nw?480:920,H=nw?380:340,L=nw?48:54,R=a.hasHr?(nw?42:54):16,Tp=16,B=nw?36:32,iw=W-L-R,ih=H-Tp-B,Dm=a.dist;
   const pv=g.pace.filter(x=>x!=null),pmin=Math.floor((quantile(pv,.02)-8)/15)*15,pmax=Math.ceil((quantile(pv,.98)+8)/15)*15;
   const hv=a.hasHr?g.hr.filter(x=>x!=null):[],hmin=hv.length?Math.floor((Math.min(...hv)-4)/10)*10:0,hmax=hv.length?Math.ceil((Math.max(...hv)+2)/10)*10:1;
   const X=d=>L+d/Dm*iw,Yp=p=>Tp+(Math.min(pmax,Math.max(pmin,p))-pmin)/(pmax-pmin)*ih,Yh=h=>Tp+ih-(h-hmin)/(hmax-hmin)*ih;
   const ev=a.hasEle?g.ele.map((e,i,arr)=>e==null?null:mean(arr.slice(Math.max(0,i-2),i+3).filter(x=>x!=null))):[];
   const evv=ev.filter(x=>x!=null),emin=evv.length?Math.min(...evv):0,emax=evv.length?Math.max(...evv):1,Ye=e=>Tp+ih-(e-emin)/Math.max(emax-emin,8)*ih*0.22;
   let s="";
-  for(let p=pmin;p<=pmax;p+=15)s+=`<line x1="${L}" x2="${W-R}" y1="${Yp(p)}" y2="${Yp(p)}" stroke="#1d2734"/><text x="${L-8}" y="${Yp(p)+4}" fill="#ff9a66" font-size="11" text-anchor="end">${pace(p)}</text>`;
-  if(hv.length)for(let h=hmin;h<=hmax;h+=10)s+=`<text x="${W-R+8}" y="${Yh(h)+4}" fill="#f08a8a" font-size="11">${h}</text>`;
-  for(let k=0;k<=Math.floor(Dm/1000);k++)s+=`<line x1="${X(k*1000)}" x2="${X(k*1000)}" y1="${Tp}" y2="${Tp+ih}" stroke="#1d2734" stroke-dasharray="2 4"/><text x="${X(k*1000)}" y="${H-10}" fill="#8b9bb0" font-size="11" text-anchor="middle">${k}</text>`;
-  s+=`<text x="${W-R}" y="${H-10}" fill="#5f6f84" font-size="10" text-anchor="end">km</text>`;
+  for(let p=pmin;p<=pmax;p+=(nw?30:15))s+=`<line x1="${L}" x2="${W-R}" y1="${Yp(p)}" y2="${Yp(p)}" stroke="#1d2734"/><text x="${L-6}" y="${Yp(p)+fs/3}" fill="#ff9a66" font-size="${fs}" text-anchor="end">${pace(p)}</text>`;
+  if(hv.length)for(let h=hmin;h<=hmax;h+=(nw?20:10))s+=`<text x="${W-R+6}" y="${Yh(h)+fs/3}" fill="#f08a8a" font-size="${fs}">${h}</text>`;
+  for(let k=0;k<=Math.floor(Dm/1000);k++)s+=`<line x1="${X(k*1000)}" x2="${X(k*1000)}" y1="${Tp}" y2="${Tp+ih}" stroke="#1d2734" stroke-dasharray="2 4"/>`+((!nw||k%2===0)?`<text x="${X(k*1000)}" y="${H-10}" fill="#8b9bb0" font-size="${fs}" text-anchor="middle">${k}</text>`:"");
+  s+=`<text x="${W-R}" y="${H-10}" fill="#5f6f84" font-size="${fs-1}" text-anchor="end">km</text>`;
   if(evv.length){let d=`M${X(g.d[0])},${Tp+ih}`;ev.forEach((e,i)=>{if(e!=null)d+=`L${X(g.d[i])},${Ye(e)}`;});d+=`L${X(g.d[g.d.length-1])},${Tp+ih}Z`;s+=`<path d="${d}" fill="rgba(139,155,176,.16)" stroke="rgba(139,155,176,.45)"/>`;}
   const path=(ys,Y)=>{let d="",pen=false;ys.forEach((v,i)=>{if(v==null){pen=false;return;}d+=(pen?"L":"M")+X(g.d[i]).toFixed(1)+","+Y(v).toFixed(1);pen=true;});return d;};
-  if(hv.length)s+=`<path d="${path(g.hr,Yh)}" fill="none" stroke="#ef4444" stroke-width="2" stroke-linejoin="round"/>`;
-  s+=`<path d="${path(g.pace,Yp)}" fill="none" stroke="#ff6a2b" stroke-width="2.4" stroke-linejoin="round"/>`;
-  s+=`<line id="xl" y1="${Tp}" y2="${Tp+ih}" stroke="#e8eef6" stroke-opacity=".6" style="display:none"/><circle id="dp" r="5" fill="#ff6a2b" stroke="#fff" stroke-width="2" style="display:none"/><circle id="dh" r="5" fill="#ef4444" stroke="#fff" stroke-width="2" style="display:none"/>`;
+  if(hv.length)s+=`<path d="${path(g.hr,Yh)}" fill="none" stroke="#ef4444" stroke-width="${nw?3:2}" stroke-linejoin="round"/>`;
+  s+=`<path d="${path(g.pace,Yp)}" fill="none" stroke="#ff6a2b" stroke-width="${nw?3.4:2.4}" stroke-linejoin="round"/>`;
+  s+=`<line id="xl" y1="${Tp}" y2="${Tp+ih}" stroke="#e8eef6" stroke-opacity=".6" style="display:none"/><circle id="dp" r="${nw?7:5}" fill="#ff6a2b" stroke="#fff" stroke-width="2" style="display:none"/><circle id="dh" r="${nw?7:5}" fill="#ef4444" stroke="#fff" stroke-width="2" style="display:none"/>`;
   s+=`<rect id="hit" x="${L}" y="${Tp}" width="${iw}" height="${ih}" fill="transparent" style="touch-action:pan-y"/>`;
   return{html:`<div class="chartbox" id="mainBox"><svg viewBox="0 0 ${W} ${H}" class="achart">${s}</svg><div class="tip"></div></div>`,c:{W,L,iw,X,Yp,Yh,Dm}};
 }
@@ -67,14 +67,14 @@ function bindMain(c){
 
 /* ---------- barres des splits ---------- */
 function splitsChart(a){
-  const sp=a.splits,W=920,H=260,L=10,R=10,Tp=26,B=34,iw=W-L-R,ih=H-Tp-B,full=a.fullSplits.map(s=>s.pace);
+  const nw=innerWidth<620,sp=a.splits,W=nw?480:920,H=nw?300:260,L=6,R=6,Tp=30,B=nw?40:34,iw=W-L-R,ih=H-Tp-B,full=a.fullSplits.map(s=>s.pace);
   const lo=Math.min(...full)-8,hi=Math.max(...full)+12,Y=p=>Tp+(p-lo)/(hi-lo)*ih,bw=iw/sp.length;
   const avg=a.avgPace;let s="";
   sp.forEach((x,i)=>{
     const col=x.pace<=avg-2?"#a3e635":x.pace>=avg+3?"#ff6a2b":"#ffb020",top=Y(x.pace),bx=L+i*bw+bw*.14,w=bw*.72;
     s+=`<rect x="${bx}" y="${top}" width="${w}" height="${Tp+ih-top}" rx="6" fill="${col}" fill-opacity=".9"><title>Km ${x.km} · ${pace(x.pace)}/km</title></rect>`;
-    s+=`<text x="${bx+w/2}" y="${top-7}" fill="#e8eef6" font-size="13" font-weight="800" text-anchor="middle">${x.full?pace(x.pace):pace(x.pace)}</text><text x="${bx+w/2}" y="${H-12}" fill="#8b9bb0" font-size="12" font-weight="700" text-anchor="middle">${x.full?"km "+x.km:Math.round(x.len)+" m"}</text>`;
-    if(a.plan&&a.plan[i])s+=`<line x1="${bx-3}" x2="${bx+w+3}" y1="${Y(a.plan[i].plan)}" y2="${Y(a.plan[i].plan)}" stroke="#fff" stroke-width="2" stroke-dasharray="4 3"/>`;
+    s+=`<text x="${bx+w/2}" y="${top-7}" fill="#e8eef6" font-size="${nw?14:13}" font-weight="800" text-anchor="middle">${pace(x.pace)}</text><text x="${bx+w/2}" y="${H-12}" fill="#8b9bb0" font-size="${nw?13:12}" font-weight="700" text-anchor="middle">${x.full?(nw?x.km:"km "+x.km):Math.round(x.len)+" m"}</text>`;
+    if(a.plan&&a.plan[i])s+=`<line x1="${bx-3}" x2="${bx+w+3}" y1="${Y(a.plan[i].plan)}" y2="${Y(a.plan[i].plan)}" stroke="#fff" stroke-width="${nw?3:2}" stroke-dasharray="4 3"/>`;
   });
   s+=`<line x1="${L}" x2="${W-R}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#a855f7" stroke-opacity=".8" stroke-dasharray="1 5" stroke-width="2"/>`;
   return`<svg viewBox="0 0 ${W} ${H}" class="achart">${s}</svg>`;
@@ -168,3 +168,6 @@ document.addEventListener("change",e=>{
   f.text().then(t=>{const p=parseGpx(t);if(p.length<10){toast("Fichier GPX non reconnu");return;}anaPoints=p;anaCustom=true;anaTitle=f.name.replace(/\.gpx$/i,"");runAnalysis();toast("Trace analysée");}).catch(()=>toast("Lecture impossible"));
   e.target.value="";
 });
+
+let anaNarrow=innerWidth<620;
+window.addEventListener("resize",()=>{const n=innerWidth<620;if(n!==anaNarrow){anaNarrow=n;if(ANA&&$("#v-analysis").classList.contains("on"))renderAnalysis();}});
