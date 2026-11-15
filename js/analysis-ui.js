@@ -155,7 +155,7 @@ function mapHighlight(i0,i1,color,fit){
   if(!anaMap||!anaHL)return;const g=ANA.grid;anaHL.clearLayers();if(i0==null)return;
   const pts=[];for(let i=i0;i<=i1;i++)pts.push([g.lat[i],g.lon[i]]);
   L.polyline(pts,{color:color||"#fff",weight:9,opacity:.95,lineCap:"round"}).addTo(anaHL);
-  if(fit)anaMap.fitBounds(L.latLngBounds(pts),{padding:[40,40],maxZoom:17});
+  if(fit)anaMap.fitBounds(L.latLngBounds(pts),{padding:[40,40],maxZoom:16});
 }
 function drawMap(a){
   const el=$("#anaMap");if(!el)return;
@@ -186,6 +186,7 @@ function focusMoment(i,fromMap){
   const a=ANA,m=a.moments[i];if(!m)return;
   setHover(Math.round((m.i0+m.i1)/2));mapHighlight(m.i0,m.i1,m.kind==="slow"?"#ef4444":"#a3e635",true);
   document.querySelectorAll(".mom").forEach(e=>e.classList.toggle("sel",+e.dataset.mom===i));
+  momStart(i);
   if(!fromMap)$("#ana-map").scrollIntoView({behavior:"smooth",block:"start"});
 }
 function selectKm(k,silent){
@@ -221,7 +222,7 @@ function calageCard(a){
 /* ---------- page ---------- */
 const kpi=(lab,val,sub,help)=>`<div class="card kpi"><div class="lab">${lab}${help?" "+hq(help):""}</div><div class="val">${val}</div><div class="sub">${sub||""}</div></div>`;
 function renderAnalysis(){
-  rpStop();
+  rpStop();momStop(true);
   const a=ANA,rep=buildReport(a,{pace,clock,km,previous:anaCustom?null:RACE.previous,official:anaCustom?null:RACE.official}),h=a.hr,el=a.ele,ca=a.cad;
   const dObj=a.objective?a.objective-(anaCustom?a.time:RACE.official):null;
   anaMarker=null;anaHL=null;
@@ -234,7 +235,7 @@ function renderAnalysis(){
   const tools=`<div class="ctools"><div class="seg"><button class="btn ${anaView.axis==="d"?"on":""}" data-anaaxis="d">Distance</button><button class="btn ${anaView.axis==="t"?"on":""}" data-anaaxis="t">Temps</button></div><label class="chk"><input type="checkbox" data-anaser="pace" ${anaView.pace?"checked":""}><i class="dot" style="background:#ff6a2b"></i>Allure</label>${h?`<label class="chk"><input type="checkbox" data-anaser="hr" ${anaView.hr?"checked":""}><i class="dot" style="background:#ef4444"></i>FC</label>`:""}${el?`<label class="chk"><input type="checkbox" data-anaser="ele" ${anaView.ele?"checked":""}><i class="dot" style="background:#8b9bb0"></i>Altitude</label>`:""}</div>`;
   const main=`<h2 id="ana-graph">Allure et fréquence cardiaque</h2><div class="card">${tools}<div id="chartHost">${chart.html}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Survole (ou touche) le graphique : la position apparaît sur la carte. Les pastilles ▼ ▲ sont les moments clés ci-dessous.</div></div>`;
   const mom=`<h2 id="ana-moments">Moments clés ${hq("moments")}</h2><div class="card">${momentsHtml(a)}</div>`;
-  const map=`<h2 id="ana-map">Parcours</h2><div class="card"><div id="anaMap" class="mapbox"></div><div class="legend" style="margin-top:10px"><span><i class="dot" style="background:hsl(130,82%,52%)"></i>plus rapide</span><span><i class="dot" style="background:hsl(68,82%,52%)"></i></span><span><i class="dot" style="background:hsl(5,82%,52%)"></i>plus lent</span><span class="mut" style="margin-left:auto">couleur = allure · numéros = kilomètres · D départ · A arrivée</span></div>${replayPanel(a)}</div>`;
+  const map=`<h2 id="ana-map">Parcours</h2><div class="card"><div id="anaMap" class="mapbox"></div><div class="legend" style="margin-top:10px"><span><i class="dot" style="background:hsl(130,82%,52%)"></i>plus rapide</span><span><i class="dot" style="background:hsl(68,82%,52%)"></i></span><span><i class="dot" style="background:hsl(5,82%,52%)"></i>plus lent</span><span class="mut" style="margin-left:auto">couleur = allure · numéros = kilomètres · D départ · A arrivée</span></div><div class="momhud" id="momHud" hidden></div>${replayPanel(a)}</div>`;
   const planCols=a.plan?`<th>Plan</th><th>Écart</th><th>Cumul</th>`:"";
   const rows=a.splits.map((s,i)=>{const pl=a.plan&&a.plan[i],fast=s.pace<=a.avgPace-2,slow=s.pace>=a.avgPace+3,col=fast?"#a3e635":slow?"#ff6a2b":"#ffb020",sym=fast?"▲":slow?"▼":"●";
     return`<tr data-kmrow="${s.km}" class="${anaView.selKm===s.km?"sel":""}" style="cursor:pointer"><td class="num"><span style="color:${col};margin-right:6px" title="${fast?"plus rapide que ta moyenne":slow?"plus lent":"dans la moyenne"}">${sym}</span>${s.full?s.km:f1(s.len/1000)+" km"}</td><td class="num">${mmss(s.time)}</td><td class="num"><b>${pace(s.pace)}</b></td>${pl?`<td class="num mut">${pace(pl.plan)}</td><td class="num" style="color:${pl.delta<=0?"var(--ok)":"#ff8a5c"}">${pl.delta>0?"+":""}${Math.round(pl.delta)} s</td><td class="num mut">${pl.cumDelta>0?"+":""}${Math.round(pl.cumDelta)} s</td>`:(a.plan?"<td></td><td></td><td></td>":"")}<td class="num">${s.hr!=null?Math.round(s.hr):"—"}</td><td class="num">${s.hrMax!=null?s.hrMax:"—"}</td><td class="num">${s.cad!=null?Math.round(s.cad):"—"}</td><td class="num">${a.hasEle?`+${Math.round(s.gain)} / −${Math.round(s.loss)}`:"—"}</td></tr>`;}).join("");
@@ -284,7 +285,9 @@ document.addEventListener("click",e=>{
     helpPop=document.createElement("div");helpPop.className="hqpop";helpPop.dataset.k=hb.dataset.help;helpPop.textContent=HELP[hb.dataset.help]||"";document.body.appendChild(helpPop);
     const r=hb.getBoundingClientRect(),w=Math.min(280,innerWidth-24);helpPop.style.width=w+"px";helpPop.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left-w/2+10))+"px";helpPop.style.top=(r.bottom+8)+"px";return;}
   if(helpPop&&!e.target.closest(".hqpop"))closeHelp();
-  const el=e.target.closest("[data-rp],[data-sharedl],[data-sharesend],[data-jadd],[data-jdel],[data-jcmp],[data-zonebpm],[data-zonebpmreset],[data-cmpclear],[data-anareset],[data-fcmax],[data-fcmaxreset],[data-anaaxis],[data-kmrow],[data-mom],[data-allmom],[data-trimmode],[data-nav]");if(!el)return;
+  const el=e.target.closest("[data-momplay],[data-momclose],[data-rp],[data-sharedl],[data-sharesend],[data-jadd],[data-jdel],[data-jcmp],[data-zonebpm],[data-zonebpmreset],[data-cmpclear],[data-anareset],[data-fcmax],[data-fcmaxreset],[data-anaaxis],[data-kmrow],[data-mom],[data-allmom],[data-trimmode],[data-nav]");if(!el)return;
+  if(el.hasAttribute("data-momplay")){if(MOM.i!=null)momStart(MOM.i);return;}
+  if(el.hasAttribute("data-momclose")){momStop(true);mapHighlight(null);clearHover();document.querySelectorAll(".mom.sel").forEach(x=>x.classList.remove("sel"));return;}
   if(el.dataset.rp){rpAction(el);return;}
   if(el.hasAttribute("data-sharedl")){shareCanvas(ANA).toBlob(b=>{if(b){saveBlob(b,"course-10k.png");toast("Image téléchargée");}},"image/png");}
   else if(el.hasAttribute("data-sharesend")){shareNative();}
@@ -532,6 +535,7 @@ function rpAction(el){
   const a=el.dataset.rp;
   if(!RP.ready&&a!=="speed"){toast("Carte en cours de chargement");return;}
   if(a==="play"){
+    momStop(true);
     if(RP.playing){RP.playing=false;}
     else{if(RP.t>=ANA.time)RP.t=0;RP.playing=true;RP.last=performance.now();RP.raf=requestAnimationFrame(rpLoop);}
     rpRender();
@@ -549,3 +553,43 @@ document.addEventListener("input",e=>{
   if(e.target.id!=="rpSlider"||!ANA)return;
   RP.t=e.target.value/1000*ANA.time;rpRender();
 });
+
+/* ---------- MOMENTS CLÉS : suivre le moment sur la carte ---------- */
+const MOM={raf:null,playing:false,i:null,t:0,t0:0,t1:0,speed:1,last:0,mk:null,line:null};
+function momStop(clear){
+  if(MOM.raf)cancelAnimationFrame(MOM.raf);MOM.raf=null;MOM.playing=false;
+  if(clear){
+    try{if(anaMap){if(MOM.mk)anaMap.removeLayer(MOM.mk);if(MOM.line)anaMap.removeLayer(MOM.line);}}catch(e){}
+    MOM.mk=null;MOM.line=null;MOM.i=null;const h=$("#momHud");if(h){h.hidden=true;h.innerHTML="";}
+  }
+}
+function momStart(i){
+  const a=ANA,m=a.moments[i],g=a.grid;if(!m)return;
+  if(RP.playing){RP.playing=false;rpRender();}
+  momStop(true);
+  MOM.i=i;MOM.t0=Math.max(0,g.t[m.i0]-10);MOM.t1=Math.min(a.time,g.t[Math.min(g.t.length-1,m.i1)]+15);MOM.t=MOM.t0;
+  MOM.speed=Math.max(1,(MOM.t1-MOM.t0)/9);                       // le moment se déroule en 9 s environ
+  const slow=m.kind==="slow",col=slow?"#ef4444":"#a3e635";
+  const h=$("#momHud");
+  if(h){h.hidden=false;h.innerHTML=`<div class="mh"><span class="momi" style="background:${col}">${slow?"▼":"▲"}</span><b>${slow?"Ralentissement":"Accélération"}</b><span class="mut">km ${f1(m.d0/1000)} → ${f1(m.d1/1000)} · ${Math.round(m.dur)} s · ${pace(m.pace)}/km${m.nearTurn?" · virage à proximité":""}</span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn" data-momplay>↻ Rejouer</button><button class="btn" data-momclose aria-label="Fermer">✕</button></span></div><div class="mhs"><span>Chrono<b id="mmT">—</b></span><span>Distance<b id="mmD">—</b></span><span>Allure<b id="mmP">—</b></span>${a.hasHr?`<span>FC<b id="mmH">—</b></span>`:""}</div>`;}
+  if(anaMap&&window.L){
+    MOM.mk=L.circleMarker([g.lat[m.i0],g.lon[m.i0]],{radius:10,color:"#fff",weight:3,fillColor:col,fillOpacity:1,interactive:false}).addTo(anaMap);
+    MOM.line=L.polyline([],{color:col,weight:9,opacity:1,lineCap:"round"}).addTo(anaMap);
+  }
+  MOM.playing=true;MOM.last=performance.now();MOM.raf=requestAnimationFrame(momLoop);momRender();
+}
+function momRender(){
+  const a=ANA,g=a.grid,t=MOM.t,m=a.moments[MOM.i];if(!m)return;
+  const ll=[lerp(g.t,g.lat,t),lerp(g.t,g.lon,t)],pf=RP.pf||g.pace.map(p=>p==null?a.avgPace:p),set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  set("#mmT",mmss(t));set("#mmD",(lerp(g.t,g.d,t)/1000).toFixed(2).replace(".",",")+" km");set("#mmP",pace(lerp(g.t,pf,t))+"/km");if(a.hasHr)set("#mmH",Math.round(lerp(g.t,g.hr,t))+" bpm");
+  if(MOM.mk){MOM.mk.setLatLng(ll);const i0=idxByT(MOM.t0),i1=idxByT(t),pts=[];for(let k=i0;k<=i1;k++)pts.push([g.lat[k],g.lon[k]]);pts.push(ll);MOM.line.setLatLngs(pts);}
+  setHover(idxByT(t));if(anaMarker)anaMarker.setStyle({opacity:0,fillOpacity:0});
+}
+function momLoop(now){
+  if(!MOM.playing)return;
+  if(!$("#v-analysis").classList.contains("on")){MOM.playing=false;return;}
+  const dt=Math.min(0.1,(now-MOM.last)/1000);MOM.last=now;MOM.t+=dt*MOM.speed;
+  if(MOM.t>=MOM.t1){MOM.t=MOM.t1;MOM.playing=false;}
+  momRender();
+  if(MOM.playing)MOM.raf=requestAnimationFrame(momLoop);
+}

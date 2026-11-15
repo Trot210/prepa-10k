@@ -270,3 +270,9 @@ tr.sel td{background:#1d2937!important}
 .rpctl{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .rpctl .btn.on{background:var(--text);color:#0a0d12;border-color:var(--text)}
 .rpctl>.btn.pri{min-width:130px}
+
+.momhud{margin-top:12px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.momhud[hidden]{display:none}
+.momhud .mh{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.momhud .mhs{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.momhud .mhs b{display:block;color:var(--text);font-size:20px;letter-spacing:-.02em;text-transform:none;font-variant-numeric:tabular-nums}
