@@ -3,7 +3,7 @@ const FIT_HELP=`<details style="margin-top:10px"><summary class="mut" style="cur
 
 /* ---------- STATE ---------- */
 const KEY="prepa10kHoka2026_v1";
-let state={done:{},logs:{},test:"",week:null,target:"43:00",mt:{},moves:{}};
+let state={done:{},logs:{},test:"",week:null,target:"43:00",mt:{},moves:{},journal:{}};
 try{const raw=localStorage.getItem(KEY);if(raw)state=Object.assign(state,JSON.parse(raw));}catch(e){}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 stampInit();
@@ -282,7 +282,7 @@ $("#tgtBtn").onclick=()=>setTarget($("#tgt").value);
 $("#tgt2Btn").onclick=()=>setTarget($("#tgt2").value);
 $("#tgt2").addEventListener("keydown",e=>{if(e.key==="Enter")$("#tgt2Btn").click();});
 $("#tgt").addEventListener("keydown",e=>{if(e.key==="Enter")$("#tgtBtn").click();});
-$("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances cochées, ressentis et le test, sur tous tes appareils synchronisés ?":"Effacer toutes les séances cochées, ressentis et le test ?")){state={done:{},logs:{},test:"",week:null,target:"43:00",moves:{}};save();week=curWeek();renderPaces();refresh();toast("Suivi réinitialisé");}};
+$("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances cochées, ressentis et le test, sur tous tes appareils synchronisés ?":"Effacer toutes les séances cochées, ressentis et le test ?")){state={done:{},logs:{},test:"",week:null,target:"43:00",moves:{},journal:{}};save();week=curWeek();renderPaces();refresh();toast("Suivi réinitialisé");}};
 
 $("#fitHelpPlan").innerHTML=FIT_HELP;
 $("#bkFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;f.text().then(importBackup);e.target.value="";});

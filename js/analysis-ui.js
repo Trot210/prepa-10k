@@ -1,11 +1,12 @@
 /* ---------- ANALYSE DE COURSE : interface ---------- */
-let ANA=null,anaPoints=null,anaCustom=false,anaTitle=RACE.name,anaMap=null,anaMarker=null,anaLeaflet=null,anaLoading=false,anaHL=null;
+let anaCmp=null,ANA=null,anaPoints=null,anaCustom=false,anaTitle=RACE.name,anaMap=null,anaMarker=null,anaLeaflet=null,anaLoading=false,anaHL=null;
 const anaView={axis:"d",pace:true,hr:true,ele:true,allMoments:false,selKm:null,calOpen:false};
 const ZCOL=["#94a3b8","#22c55e","#f59e0b","#f97316","#ef4444"],ZNAME=["Zone 1 · récupération","Zone 2 · endurance","Zone 3 · tempo","Zone 4 · seuil","Zone 5 · maximale"];
 const f1=x=>x.toFixed(1).replace(".",","),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const mmss=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");};
 const fcmaxSaved=()=>{try{const v=+localStorage.getItem("prepa10kFcmax");return v>=120&&v<=230?v:null;}catch(e){return null;}};
 let anaTrim=(()=>{try{const t=JSON.parse(localStorage.getItem("prepa10kTrim"));if(t&&["start","end","full","custom"].includes(t.mode))return t;}catch(e){}return{mode:"start"};})();
+const zoneBpmSaved=()=>{try{const v=JSON.parse(localStorage.getItem("prepa10kZoneBpm"));if(Array.isArray(v)&&v.length===4&&v.every((x,i)=>x>=60&&x<=230&&(i===0||x>v[i-1])))return v;}catch(e){}return null;};
 const saveTrim=()=>{try{localStorage.setItem("prepa10kTrim",JSON.stringify(anaTrim));}catch(e){}};
 
 /* ---------- aides contextuelles ---------- */
@@ -23,6 +24,14 @@ const HELP={
   calage:"Ta montre démarre avant la ligne de départ. Le calage retire cet excédent pour que la durée analysée égale ton temps officiel.",
   moments:"Passages où l'allure s'écarte nettement de ta moyenne : plus de 20 s/km plus lent, ou plus de 15 s/km plus rapide, pendant au moins 10 s."
 };
+Object.assign(HELP,{
+  foulee:"Distance parcourue à chaque pas : vitesse ÷ cadence. Une foulée qui raccourcit sans que la cadence change signale souvent de la fatigue ou un terrain difficile.",
+  efficacite:"Mètres parcourus par battement de cœur (vitesse ÷ FC). Plus c'est haut, plus tu avances vite pour un même effort cardiaque.",
+  propres:"Kilomètres courus à ± 5 s de ta moyenne : un indicateur simple de régularité.",
+  bilanTemps:"Temps perdu dans les ralentissements et gagné dans les accélérations par rapport à ta moyenne, sur les moments clés détectés.",
+  montee:"Temps mis par ta FC pour atteindre 90 % de son maximum observé. Plus il est court, plus l'effort a démarré fort.",
+  riegel:"Formule de Riegel : T2 = T1 × (D2 ÷ D1)^1,06. Une estimation fiable pour les distances proches, de moins en moins pour le marathon sans préparation spécifique."
+});
 const hq=k=>`<button class="hq" type="button" data-help="${k}" aria-label="Aide : ${k}">?</button>`;
 
 /* ---------- chargement ---------- */
@@ -45,7 +54,7 @@ function trimOpts(total){
 function runAnalysis(){
   const total=anaPoints[anaPoints.length-1].t-anaPoints[0].t;
   const o=Object.assign(anaCustom?{}:{official:RACE.official,objective:RACE.objective,distance:RACE.distance},trimOpts(total));
-  o.fcmax=fcmaxSaved();
+  o.fcmax=fcmaxSaved();o.zoneBpm=zoneBpmSaved();
   ANA=analyzeRun(anaPoints,o);
   if(!ANA){$("#anaRoot").innerHTML=`<div class="card">Trace trop courte pour être analysée.</div>`;return;}
   renderAnalysis();
@@ -217,7 +226,7 @@ function renderAnalysis(){
   const calChip=anaCustom?`<span class="chip">${esc(anaTitle)}</span>`:`<span class="chip">${a.trimmed||a.trimmedEnd?`Calée : ${a.trimmed?clock(a.trimmed)+" en moins au début":""}${a.trimmed&&a.trimmedEnd?" · ":""}${a.trimmedEnd?clock(a.trimmedEnd)+" en moins à la fin":""}`:"Trace complète (non calée)"}</span>`;
   const head=`<div class="card heroMain" id="ana-resume" style="border-color:#3a2a1f"><div class="eyebrow">${anaCustom?"Analyse d'une trace":"Dimanche 15 novembre 2026"}</div><div style="display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;position:relative;z-index:1"><div><h2 style="margin:6px 0 0;font-size:22px">${esc(anaTitle)}</h2><div class="big">${clock(anaCustom?a.time:RACE.official)}<span>${anaCustom?"temps de la trace":"temps officiel"}</span></div></div>${dObj!=null?`<div class="stat" style="margin-bottom:8px;border-color:${dObj>=0?"#a3e63566":"#ef444466"}"><div class="l">vs objectif ${clock(a.objective)}</div><div class="v" style="color:${dObj>=0?"var(--ok)":"#ef4444"}">${dObj>=0?"−":"+"}${Math.abs(Math.round(dObj))} s</div></div>`:""}</div><div class="mut" style="position:relative;z-index:1;margin-top:6px">${esc(rep.resume)}</div><div class="chips">${calChip}<span class="chip">${a.points} points GPS</span>${h?`<span class="chip">FC <b>présente</b></span>`:`<span class="chip">FC <b>absente</b></span>`}${ca?`<span class="chip">Cadence <b>présente</b></span>`:""}</div>
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;position:relative;z-index:1">${anaCustom?`<button class="btn" data-anareset>← Revenir à ma course</button>`:""}${anaUpload()}</div></div>`;
-  const nav=`<nav class="ananav" id="ananav">${[["ana-resume","Résumé"],["ana-graph","Graphique"],["ana-moments","Moments"],["ana-map","Carte"],["ana-splits","Splits"],...(h?[["ana-fc","FC"]]:[]),["ana-bilan","Bilan"],["ana-data","Données"]].map(([id,l])=>`<a href="#${id}" data-nav="${id}">${l}</a>`).join("")}</nav>`;
+  const nav=`<nav class="ananav" id="ananav">${[["ana-resume","Résumé"],["ana-graph","Graphique"],["ana-moments","Moments"],["ana-map","Carte"],["ana-splits","Splits"],...(h?[["ana-fc","FC"]]:[]),["ana-adv","Avancé"],["ana-proj","Projections"],["ana-cmp","Comparer"],["ana-bilan","Bilan"],["ana-share","Partager"],["ana-journal","Journal"],["ana-data","Données"]].map(([id,l])=>`<a href="#${id}" data-nav="${id}">${l}</a>`).join("")}</nav>`;
   const kp=`<div class="grid g4" style="margin-top:14px">${kpi("Allure moyenne",pace(a.avgPace)+"/km",anaCustom?"":`objectif ${pace(a.objective/10)}/km`,"allure")}${kpi("Distance",(a.dist/1000).toFixed(2).replace(".",",")+" km",a.scaled?`GPS ${(a.rawDist/1000).toFixed(2).replace(".",",")} km · calée sur 10 km`:"mesurée par GPS","distance")}${h?kpi("FC moyenne",Math.round(h.avg)+" bpm",`${h.pctMax.toFixed(0)} % de la FC max${h.fcmaxObserved?" observée":""}`,"fcmoy"):kpi("FC","—","absente du fichier")}${h?kpi("FC maximale",h.max+" bpm",`min ${h.min} bpm`,"fcmax"):kpi("FC maximale","—","")}${ca?kpi("Cadence moyenne",Math.round(ca.avg)+" pas/min",ca.factor===2?"valeur du fichier × 2":"valeur du fichier","cadence"):kpi("Cadence","—","absente du fichier")}${el?kpi("Dénivelé",`+${Math.round(el.gain)} / −${Math.round(el.loss)} m`,`altitude ${Math.round(el.min)}–${Math.round(el.max)} m`,"deniv"):kpi("Dénivelé","—","absent")}${kpi("Régularité",f1(a.variability.sd)+" s/km","écart-type des km · écart max "+Math.round(a.variability.range)+" s","regularite")}${kpi("Split",`${clock(a.split.first)} / ${clock(a.split.second)}`,a.split.diff>=0?`+${Math.round(a.split.diff)} s en 2e moitié`:`−${Math.round(-a.split.diff)} s en 2e moitié`,"split")}</div>`;
   const tools=`<div class="ctools"><div class="seg"><button class="btn ${anaView.axis==="d"?"on":""}" data-anaaxis="d">Distance</button><button class="btn ${anaView.axis==="t"?"on":""}" data-anaaxis="t">Temps</button></div><label class="chk"><input type="checkbox" data-anaser="pace" ${anaView.pace?"checked":""}><i class="dot" style="background:#ff6a2b"></i>Allure</label>${h?`<label class="chk"><input type="checkbox" data-anaser="hr" ${anaView.hr?"checked":""}><i class="dot" style="background:#ef4444"></i>FC</label>`:""}${el?`<label class="chk"><input type="checkbox" data-anaser="ele" ${anaView.ele?"checked":""}><i class="dot" style="background:#8b9bb0"></i>Altitude</label>`:""}</div>`;
   const main=`<h2 id="ana-graph">Allure et fréquence cardiaque</h2><div class="card">${tools}<div id="chartHost">${chart.html}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Survole (ou touche) le graphique : la position apparaît sur la carte. Les pastilles ▼ ▲ sont les moments clés ci-dessous.</div></div>`;
@@ -227,8 +236,9 @@ function renderAnalysis(){
   const rows=a.splits.map((s,i)=>{const pl=a.plan&&a.plan[i],fast=s.pace<=a.avgPace-2,slow=s.pace>=a.avgPace+3,col=fast?"#a3e635":slow?"#ff6a2b":"#ffb020",sym=fast?"▲":slow?"▼":"●";
     return`<tr data-kmrow="${s.km}" class="${anaView.selKm===s.km?"sel":""}" style="cursor:pointer"><td class="num"><span style="color:${col};margin-right:6px" title="${fast?"plus rapide que ta moyenne":slow?"plus lent":"dans la moyenne"}">${sym}</span>${s.full?s.km:f1(s.len/1000)+" km"}</td><td class="num">${mmss(s.time)}</td><td class="num"><b>${pace(s.pace)}</b></td>${pl?`<td class="num mut">${pace(pl.plan)}</td><td class="num" style="color:${pl.delta<=0?"var(--ok)":"#ff8a5c"}">${pl.delta>0?"+":""}${Math.round(pl.delta)} s</td><td class="num mut">${pl.cumDelta>0?"+":""}${Math.round(pl.cumDelta)} s</td>`:(a.plan?"<td></td><td></td><td></td>":"")}<td class="num">${s.hr!=null?Math.round(s.hr):"—"}</td><td class="num">${s.hrMax!=null?s.hrMax:"—"}</td><td class="num">${s.cad!=null?Math.round(s.cad):"—"}</td><td class="num">${a.hasEle?`+${Math.round(s.gain)} / −${Math.round(s.loss)}`:"—"}</td></tr>`;}).join("");
   const spl=`<h2 id="ana-splits">Splits au kilomètre</h2><div class="card"><div class="legend" style="margin-bottom:6px"><span style="color:#a3e635">▲ plus rapide que ta moyenne</span><span style="color:#ffb020">● dans la moyenne</span><span style="color:#ff6a2b">▼ plus lent</span>${a.plan?`<span><i class="dot" style="background:#fff"></i>tiret : allure prévue au plan</span>`:""}<span><i class="dot" style="background:#a855f7"></i>pointillé : allure moyenne</span></div>${splitsChart(a)}<div class="mut" id="kmSelInfo" style="font-size:12.5px;margin:6px 0 4px">Touche un kilomètre (barre ou ligne du tableau) pour le voir sur le graphique et la carte.</div><div class="tscroll" style="margin-top:6px"><table class="stickycol"><tr><th>Km</th><th>Temps</th><th>Allure</th>${planCols}<th>FC moy</th><th>FC max</th><th>Cad.</th><th>D+ / D−</th></tr>${rows}</table></div>${a.plan?`<p class="mut" style="font-size:12.5px;margin:10px 0 0">Plan = stratégie de ton programme pour ${clock(a.objective)} : km 1 à +2 s, allure stable, relance au km 9, accélération finale. Écart négatif = plus rapide que prévu.</p>`:""}</div>`;
-  const zrows=h?h.zones.map((z,i)=>{const lo=i===0?0:Math.round(h.fcmax*ZONE_BOUNDS[i-1]),hi=i===4?h.fcmax:Math.round(h.fcmax*ZONE_BOUNDS[i]);return`<div class="zrow"><span class="zn"><i class="dot" style="background:${ZCOL[i]}"></i>${ZNAME[i]}<small class="mut"> ${i===0?"< "+hi:i===4?"≥ "+lo:lo+"–"+hi} bpm</small></span><div class="bar" style="height:12px"><i style="width:${z.pct*100}%;background:${ZCOL[i]}"></i></div><span class="num">${mmss(z.s)}</span><b class="num" style="width:44px;text-align:right">${Math.round(z.pct*100)} %</b></div>`;}).reverse().join(""):"";
-  const zon=h?`<h2 id="ana-fc">Zones de fréquence cardiaque ${hq("zones")}</h2><div class="card"><div class="grid g2"><div>${zrows}</div><div><div class="note"><b>Lecture de l'effort</b> ${hq("decouplage")}<br>${rep.effort.slice(0,2).map(esc).join("<br>")}</div><div style="margin-top:12px"><label class="mut" style="font-size:12px;font-weight:700">FC maximale utilisée pour les zones</label><div class="calcIn" style="margin-top:6px"><input id="fcmaxIn" inputmode="numeric" value="${Math.round(h.fcmax)}" style="width:100px;font-size:16px"><button class="btn" data-fcmax>Appliquer</button>${h.fcmaxObserved?"":`<button class="btn" data-fcmaxreset>Revenir au maximum observé</button>`}</div><p class="mut" style="font-size:12.5px;margin:8px 0 0">${h.fcmaxObserved?"Par défaut : la FC maximale observée sur cette trace. Si ta vraie FC max est plus haute, les zones se décalent vers le bas.":"Valeur saisie par toi."} Zones : 60 / 70 / 80 / 90 % de la FC max.</p></div></div></div></div>`:"";
+  const zrows=h?h.zones.map((z,i)=>{const lo=i===0?0:h.bounds[i-1],hi=i===4?h.fcmax:h.bounds[i];return`<div class="zrow"><span class="zn"><i class="dot" style="background:${ZCOL[i]}"></i>${ZNAME[i]}<small class="mut"> ${i===0?"< "+hi:i===4?"≥ "+lo:lo+"–"+hi} bpm</small></span><div class="bar" style="height:12px"><i style="width:${z.pct*100}%;background:${ZCOL[i]}"></i></div><span class="num">${mmss(z.s)}</span><b class="num" style="width:44px;text-align:right">${Math.round(z.pct*100)} %</b></div>`;}).reverse().join(""):"";
+  const zon=h?`<h2 id="ana-fc">Zones de fréquence cardiaque ${hq("zones")}</h2><div class="card"><div class="grid g2"><div>${zrows}</div><div><div class="note"><b>Lecture de l'effort</b> ${hq("decouplage")}<br>${rep.effort.slice(0,2).map(esc).join("<br>")}</div><div style="margin-top:12px"><label class="mut" style="font-size:12px;font-weight:700">FC maximale utilisée pour les zones</label><div class="calcIn" style="margin-top:6px"><input id="fcmaxIn" inputmode="numeric" value="${Math.round(h.fcmax)}" style="width:100px;font-size:16px"><button class="btn" data-fcmax>Appliquer</button>${h.fcmaxObserved?"":`<button class="btn" data-fcmaxreset>Revenir au maximum observé</button>`}</div><p class="mut" style="font-size:12.5px;margin:8px 0 0">${h.fcmaxObserved?"Par défaut : la FC maximale observée sur cette trace. Si ta vraie FC max est plus haute, les zones se décalent vers le bas.":"Valeur saisie par toi."} ${h.custom?"Les seuils des zones sont ceux que tu as saisis ci-dessous.":"Zones : 60 / 70 / 80 / 90 % de la FC max."}</p></div>
+   <details style="margin-top:12px"><summary class="mut" style="cursor:pointer;font-weight:700;font-size:13px">Utiliser les zones de ma montre Garmin</summary><p class="mut" style="font-size:12.5px;margin:8px 0">Dans Garmin Connect, ouvre tes zones de FC et saisis la FC où commence chaque zone.</p><div class="calcIn">${[2,3,4,5].map((z,k)=>`<label class="mut" style="font-size:12px;font-weight:700">Z${z} dès<br><input data-zbpm="${k}" inputmode="numeric" value="${h.bounds[k]}" style="width:78px;font-size:16px"></label>`).join("")}</div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn" data-zonebpm>Appliquer</button>${h.custom?`<button class="btn" data-zonebpmreset>Revenir aux pourcentages</button>`:""}</div></details></div></div></div>`:"";
   const bst=a.bests.length?`<h2>Meilleurs passages</h2><div class="grid g3">${a.bests.map(b=>kpi("Meilleur "+(b.L/1000)+" km glissant",b.L===1000?mmss(b.time):clock(b.time),`${pace(b.pace)}/km · du km ${f1(b.from/1000)} au km ${f1(b.to/1000)}`)).join("")}</div>`:"";
   const li=arr=>arr.length?`<ul>${arr.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<div class="mut">Rien de marquant dans les données.</div>`;
   const bil=`<h2 id="ana-bilan">Bilan de course</h2><div class="grid g2"><div class="card prose" style="border-top:3px solid var(--ok)"><h3>Points forts</h3>${li(rep.forts)}</div><div class="card prose" style="border-top:3px solid #ff6a2b"><h3>Points faibles</h3>${li(rep.faibles)}</div><div class="card prose" style="border-top:3px solid #a855f7"><h3>Gestion de l'effort</h3>${li(rep.effort)}</div><div class="card prose" style="border-top:3px solid #06b6d4"><h3>Axes d'amélioration</h3>${li(rep.axes)}</div></div><p class="mut" style="font-size:12.5px;margin:10px 0 0">Ce bilan est généré à partir des mesures ci-dessus ; les pistes sont indicatives, pas un plan d'entraînement.</p>`;
@@ -242,8 +252,8 @@ function renderAnalysis(){
     ...(el?[[tick(q.eleJumps===0,true),"Altitude","Issue du fichier, lissée : indicative à quelques mètres près."]]:[])
   ].map(r=>`<div class="qrow"><span class="qi">${r[0]}</span><span class="qn">${r[1]}</span><span class="mut">${r[2]}</span></div>`).join("");
   const lim=`<h2 id="ana-data">Fiabilité des données</h2><div class="card"><div class="qgrid">${qrows}</div><p class="mut" style="font-size:12.5px;margin:12px 0 0"><b>Absent du fichier</b> : puissance, température et météo, temps de contact au sol et oscillation, temps officiels intermédiaires, classement.</p></div>`;
-  $("#anaRoot").innerHTML=head+nav+kp+calageCard(a)+main+mom+map+spl+zon+bst+bil+lim;
-  bindMain(chart.c);drawMap(a);anaNavInit();
+  $("#anaRoot").innerHTML=head+nav+kp+calageCard(a)+main+mom+map+spl+zon+bst+advancedHtml(a)+projectionsHtml(a)+compareHtml(a)+bil+shareHtml(a)+journalHtml(a)+lim;
+  bindMain(chart.c);drawMap(a);anaNavInit();drawSharePreview();
 }
 
 /* ---------- navigation interne ---------- */
@@ -271,8 +281,16 @@ document.addEventListener("click",e=>{
     helpPop=document.createElement("div");helpPop.className="hqpop";helpPop.dataset.k=hb.dataset.help;helpPop.textContent=HELP[hb.dataset.help]||"";document.body.appendChild(helpPop);
     const r=hb.getBoundingClientRect(),w=Math.min(280,innerWidth-24);helpPop.style.width=w+"px";helpPop.style.left=Math.max(12,Math.min(innerWidth-w-12,r.left-w/2+10))+"px";helpPop.style.top=(r.bottom+8)+"px";return;}
   if(helpPop&&!e.target.closest(".hqpop"))closeHelp();
-  const el=e.target.closest("[data-anareset],[data-fcmax],[data-fcmaxreset],[data-anaaxis],[data-kmrow],[data-mom],[data-allmom],[data-trimmode],[data-nav]");if(!el)return;
-  if(el.hasAttribute("data-anareset")){anaCustom=false;anaTitle=RACE.name;anaPoints=null;ANA=null;initAnalysis();}
+  const el=e.target.closest("[data-sharedl],[data-sharesend],[data-jadd],[data-jdel],[data-jcmp],[data-zonebpm],[data-zonebpmreset],[data-cmpclear],[data-anareset],[data-fcmax],[data-fcmaxreset],[data-anaaxis],[data-kmrow],[data-mom],[data-allmom],[data-trimmode],[data-nav]");if(!el)return;
+  if(el.hasAttribute("data-sharedl")){shareCanvas(ANA).toBlob(b=>{if(b){saveBlob(b,"course-10k.png");toast("Image téléchargée");}},"image/png");}
+  else if(el.hasAttribute("data-sharesend")){shareNative();}
+  else if(el.hasAttribute("data-jadd")){journalAdd();}
+  else if(el.dataset.jdel){if(confirm("Retirer cette course du journal ?"))journalDel(el.dataset.jdel);}
+  else if(el.dataset.jcmp){journalCompare(el.dataset.jcmp);}
+  else if(el.hasAttribute("data-zonebpm")){const v=[...document.querySelectorAll("[data-zbpm]")].map(i=>+i.value);if(!v.every((x,i)=>x>=60&&x<=230&&(i===0||x>v[i-1]))){toast("Seuils croissants entre 60 et 230 bpm");return;}try{localStorage.setItem("prepa10kZoneBpm",JSON.stringify(v));}catch(x){}runAnalysis();}
+  else if(el.hasAttribute("data-zonebpmreset")){try{localStorage.removeItem("prepa10kZoneBpm");}catch(x){}runAnalysis();}
+  else if(el.hasAttribute("data-cmpclear")){anaCmp=null;renderAnalysis();document.getElementById("ana-cmp").scrollIntoView({block:"start"});}
+  else if(el.hasAttribute("data-anareset")){anaCustom=false;anaTitle=RACE.name;anaPoints=null;ANA=null;initAnalysis();}
   else if(el.hasAttribute("data-fcmax")){const v=+$("#fcmaxIn").value;if(!(v>=120&&v<=230)){toast("FC max entre 120 et 230");return;}try{localStorage.setItem("prepa10kFcmax",v);}catch(x){}runAnalysis();}
   else if(el.hasAttribute("data-fcmaxreset")){try{localStorage.removeItem("prepa10kFcmax");}catch(x){}runAnalysis();}
   else if(el.dataset.anaaxis){anaView.axis=el.dataset.anaaxis;renderChart();}
@@ -293,9 +311,162 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   if(ANA&&(e.target.id==="trimS"||e.target.id==="trimE")){anaTrim={mode:"custom",s:+$("#trimS").value,e:+$("#trimE").value};if(!anaCustom)saveTrim();anaView.calOpen=true;runAnalysis();return;}
   if(e.target.dataset&&e.target.dataset.anaser){anaView[e.target.dataset.anaser]=e.target.checked;renderChart();return;}
+  if(e.target.id==="cmpFile"){const f=e.target.files[0];if(!f||!ANA)return;
+    f.text().then(t=>{const p=parseGpx(t);if(p.length<10){toast("Fichier GPX non reconnu");return;}const b=analyzeRun(p,{fcmax:fcmaxSaved(),zoneBpm:zoneBpmSaved()});if(!b){toast("Trace trop courte");return;}anaCmp={name:f.name.replace(/\.gpx$/i,""),a:b};renderAnalysis();document.getElementById("ana-cmp").scrollIntoView({block:"start"});toast("Comparaison prête");}).catch(()=>toast("Lecture impossible"));
+    e.target.value="";return;}
   if(e.target.id!=="anaFile")return;const f=e.target.files[0];if(!f)return;
   f.text().then(t=>{const p=parseGpx(t);if(p.length<10){toast("Fichier GPX non reconnu");return;}anaPoints=p;anaCustom=true;anaTitle=f.name.replace(/\.gpx$/i,"");anaTrim={mode:"full"};runAnalysis();toast("Trace analysée");}).catch(()=>toast("Lecture impossible"));
   e.target.value="";
 });
 let anaNarrow=innerWidth<620;
 window.addEventListener("resize",()=>{const n=innerWidth<620;if(n!==anaNarrow){anaNarrow=n;if(ANA&&$("#v-analysis").classList.contains("on"))renderAnalysis();}});
+
+/* ---------- LOT 2 : indicateurs avancés, graphiques complémentaires, projections, comparaison ---------- */
+function miniBars(vals,labels,o){
+  o=o||{};const W=480,H=o.h||230,L=8,R=8,Tp=30,B=32,iw=W-L-R,ih=H-Tp-B,n=vals.length;
+  const mn=Math.min(...vals),mx=Math.max(...vals),span=(mx-mn)||1,lo=o.lo!=null?o.lo:mn-span*.6,hi=o.hi!=null?o.hi:mx+span*.2;
+  const Y=v=>Tp+ih-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*ih,bw=iw/n,fmt=o.fmt||(v=>v);let s="";
+  vals.forEach((v,i)=>{const col=(o.colors&&o.colors[i])||o.color||"#ffb020",x=L+i*bw+bw*.14,w=bw*.72,y=Y(v);
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${Math.max(1,Tp+ih-y)}" rx="5" fill="${col}" fill-opacity=".9"/><text x="${x+w/2}" y="${y-7}" fill="#e8eef6" font-size="${o.vfs||14}" font-weight="800" text-anchor="middle">${fmt(v)}</text><text x="${x+w/2}" y="${H-10}" fill="#8b9bb0" font-size="14" font-weight="700" text-anchor="middle">${labels[i]}</text>`;});
+  if(o.ref!=null)s+=`<line x1="${L}" x2="${W-R}" y1="${Y(o.ref)}" y2="${Y(o.ref)}" stroke="#a855f7" stroke-dasharray="1 5" stroke-width="2"/>`;
+  return`<svg viewBox="0 0 ${W} ${H}" class="achart">${s}</svg>`;
+}
+function stackedZones(a){
+  const sp=a.fullSplits.filter(x=>x.zt),W=480,H=250,L=8,R=8,Tp=10,B=32,iw=W-L-R,ih=H-Tp-B,bw=iw/sp.length;let s="";
+  sp.forEach((x,i)=>{const tot=x.zt.reduce((p,q)=>p+q,0)||1;let y=Tp+ih;x.zt.forEach((t,z)=>{const hgt=t/tot*ih;if(hgt<0.5)return;y-=hgt;s+=`<rect x="${L+i*bw+bw*.14}" y="${y}" width="${bw*.72}" height="${hgt}" fill="${ZCOL[z]}"><title>Km ${x.km} · zone ${z+1} · ${Math.round(t)} s</title></rect>`;});
+    s+=`<text x="${L+i*bw+bw/2}" y="${H-10}" fill="#8b9bb0" font-size="14" font-weight="700" text-anchor="middle">${x.km}</text>`;});
+  return`<svg viewBox="0 0 ${W} ${H}" class="achart">${s}</svg>`;
+}
+function scatterChart(a){
+  const pts=a.adv.scatter,W=480,H=270,L=44,R=12,Tp=12,B=36,iw=W-L-R,ih=H-Tp-B;
+  const ps=pts.map(x=>x.p),hs=pts.map(x=>x.hr),pmin=Math.floor((quantile(ps,.02)-4)/15)*15,pmax=Math.ceil((quantile(ps,.98)+4)/15)*15,hmin=Math.floor(Math.min(...hs)/10)*10,hmax=Math.ceil(Math.max(...hs)/10)*10;
+  const X=p=>L+(pmax-Math.min(pmax,Math.max(pmin,p)))/(pmax-pmin)*iw,Y=h=>Tp+ih-(h-hmin)/(hmax-hmin)*ih;let s="";
+  for(let h=hmin;h<=hmax;h+=10)s+=`<line x1="${L}" x2="${W-R}" y1="${Y(h)}" y2="${Y(h)}" stroke="#1d2734"/><text x="${L-6}" y="${Y(h)+5}" fill="#f08a8a" font-size="14" text-anchor="end">${h}</text>`;
+  for(let p=pmin;p<=pmax;p+=15)s+=`<text x="${X(p)}" y="${H-12}" fill="#ff9a66" font-size="14" text-anchor="middle">${pace(p)}</text>`;
+  pts.forEach(x=>{s+=`<circle cx="${X(x.p).toFixed(1)}" cy="${Y(x.hr).toFixed(1)}" r="4" fill="hsl(${Math.round(210-190*x.d/a.dist)},85%,58%)" fill-opacity=".75"/>`;});
+  return`<svg viewBox="0 0 ${W} ${H}" class="achart">${s}</svg>`;
+}
+function advancedHtml(a){
+  const ad=a.adv,sp=a.fullSplits,n=sp.length,fm=(x,d)=>x.toFixed(d).replace(".",","),kms=sp.map(x=>x.km);
+  const cards=[
+    ad.stride!=null?kpi("Foulée moyenne",fm(ad.stride,2)+" m",`de ${fm(ad.strideMin,2)} à ${fm(ad.strideMax,2)} m selon les km`,"foulee"):"",
+    ad.eff!=null?kpi("Efficacité",fm(ad.eff,2)+" m/battement","plus haut = plus économique","efficacite"):"",
+    kpi("Km réguliers",`${ad.clean} / ${n}`,"à ± 5 s de ta moyenne","propres"),
+    kpi("À-coups",`−${Math.round(ad.lost)} s / +${Math.round(ad.won)} s`,"perdu dans les ralentissements / gagné dans les accélérations","bilanTemps"),
+    ad.t90!=null?kpi("Montée de la FC",Math.round(ad.t90)+" s","pour atteindre 90 % du maximum","montee"):"",
+    ad.hr0!=null?kpi("FC au début analysé",Math.round(ad.hr0)+" bpm",a.trimmed?"à la ligne de départ (trace calée)":"au début de la trace"):""
+  ].join("");
+  const card=(t,cap,svg)=>`<div class="card cc"><h3>${t}</h3><div class="mut" style="font-size:12.5px;margin:-4px 0 6px">${cap}</div>${svg}</div>`;
+  const g=[];
+  if(a.plan){const av=a.plan.map(x=>-x.cumDelta),mxI=av.indexOf(Math.max(...av));g.push(card("Avance cumulée sur ton plan",`Avance maximale de ${Math.round(Math.max(...av))} s au km ${mxI+1} ; ${av[av.length-1]>=0?"avance":"retard"} de ${Math.abs(Math.round(av[av.length-1]))} s à l'arrivée (positif = en avance).`,miniBars(av,kms,{lo:Math.min(0,...av)-2,hi:Math.max(...av)+8,color:"#a3e635",colors:av.map(v=>v>=0?"#a3e635":"#ef4444"),fmt:v=>(v>0?"+":"")+Math.round(v)})));}
+  const tot=ad.hist.reduce((x,b)=>x+b.sec,0),near=ad.hist.filter(b=>Math.abs(b.lo+5-a.avgPace)<=10).reduce((x,b)=>x+b.sec,0);
+  g.push(card("Répartition des allures",`${Math.round(near/tot*100)} % du temps à moins de 10 s/km de ta moyenne (${pace(a.avgPace)}).`,miniBars(ad.hist.map(b=>b.sec/tot*100),ad.hist.map(b=>pace(b.lo)),{lo:0,fmt:v=>Math.round(v)+"%",color:"#ff6a2b",colors:ad.hist.map(b=>Math.abs(b.lo+5-a.avgPace)<=5?"#ffb020":"#ff6a2b"),vfs:12})));
+  if(a.hasCad){const c=sp.map(x=>x.cad);g.push(card("Cadence par kilomètre",`De ${Math.round(Math.min(...c))} à ${Math.round(Math.max(...c))} pas/min : ${c[0]-c[n-1]>=4?"elle diminue au fil de la course":"elle reste stable"}.`,miniBars(c,kms,{fmt:v=>Math.round(v),color:"#06b6d4"})));
+    const st=sp.map(x=>x.stride),mnI=st.indexOf(Math.min(...st));g.push(card("Longueur de foulée par kilomètre",`Foulée la plus courte au km ${mnI+1} (${fm(st[mnI],2)} m), la plus longue au km ${st.indexOf(Math.max(...st))+1} (${fm(Math.max(...st),2)} m).`,miniBars(st,kms,{fmt:v=>fm(v,2),color:"#8b5cf6",vfs:12,ref:ad.stride})));}
+  if(a.hasHr){const e=sp.map(x=>x.eff),mnE=e.indexOf(Math.min(...e));g.push(card("Efficacité par kilomètre (m par battement)",`Plus basse au km ${mnE+1} (${fm(e[mnE],2)}), meilleure au km ${e.indexOf(Math.max(...e))+1} (${fm(Math.max(...e),2)}). Le km 1 est biaisé par la montée de la FC.`,miniBars(e,kms,{fmt:v=>fm(v,2),color:"#22c55e",vfs:12,ref:ad.eff})));
+    g.push(card("FC par zones et par kilomètre",`${Math.round(a.hr.zones[4].pct*100)} % du temps en zone 5, ${Math.round(a.hr.zones[3].pct*100)} % en zone 4. Couleurs : zone 1 (gris) à zone 5 (rouge).`,stackedZones(a)));
+    g.push(card("Nuage allure / fréquence cardiaque",`Chaque point = 10 s de course, du début (bleu) à la fin (orange). Les points à droite sont les passages rapides.`,scatterChart(a)));}
+  return`<h2 id="ana-adv">Indicateurs avancés</h2><div class="grid g3">${cards}</div><div class="chartgrid" style="margin-top:14px">${g.join("")}</div>`;
+}
+function projectionsHtml(a){
+  const T0=anaCustom?a.time:RACE.official,dKm=anaCustom?a.dist/1000:10;
+  const pr=predictTimes(T0,dKm).filter(x=>Math.abs(x.D-dKm)>0.05),fmtT=t=>{const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=Math.round(t%60);return h?`${h}h${String(m).padStart(2,"0")}'${String(s).padStart(2,"0")}`:`${m}'${String(s).padStart(2,"0")}`;};
+  const rows=pr.map(x=>`<tr><td><b>${x.l}</b></td><td class="num">${fmtT(x.t)}</td><td class="num mut">${pace(x.t/x.D)}/km</td></tr>`).join("");
+  const showTr=dKm>9.5&&dKm<10.5,p10=T0/dKm,tp=showTr?trainingPaces(p10):[];
+  const trRows=tp.map(z=>`<tr><td><b>${z.n}</b></td><td class="num mut">${Z[z.z].r}</td><td class="num">${pace(z.lo)} – ${pace(z.hi)}</td></tr>`).join("");
+  return`<h2 id="ana-proj">Projections et allures ${hq("riegel")}</h2><div class="grid g2"><div class="card"><h3>Ce que ce chrono laisse espérer</h3><div class="tscroll"><table><tr><th>Distance</th><th>Projection</th><th>Allure</th></tr>${rows}</table></div><p class="mut" style="font-size:12.5px;margin:10px 0 0">Estimation de Riegel à partir de ${fmtT(T0)} sur ${f1(dKm)} km. Valable à préparation égale : le marathon exige une préparation spécifique, ne prends cette valeur que comme repère.</p></div>
+  ${showTr?`<div class="card"><h3>Tes allures d'entraînement mises à jour</h3><div class="tscroll"><table><tr><th>Zone</th><th>Ancien plan</th><th>Recalculée</th></tr>${trRows}</table></div><p class="mut" style="font-size:12.5px;margin:10px 0 0">Mêmes proportions que ton programme (calé sur 4'18/km au 10 km), appliquées à ton allure réelle de ${pace(p10)}/km. À réévaluer avec un test avant ta prochaine préparation.</p></div>`:`<div class="card"><h3>Allures d'entraînement</h3><div class="mut">Disponibles pour une course de 10 km uniquement.</div></div>`}</div>`;
+}
+function compareHtml(a){
+  const head=`<h2 id="ana-cmp">Comparer avec une autre trace</h2>`;
+  if(!anaCmp)return head+`<div class="card"><div class="mut">Charge un autre fichier GPX (une course précédente ou une sortie d'entraînement) pour comparer indicateurs, allure sur la distance et splits côte à côte.</div><label class="btn" style="display:inline-block;cursor:pointer;margin-top:12px">Choisir une trace GPX<input type="file" id="cmpFile" accept=".gpx,application/gpx+xml,text/xml" hidden></label></div>`;
+  const b=anaCmp.a,fm=(x,d)=>x.toFixed(d).replace(".",","),dif=(x,y,f,u,lowerBetter)=>{const d=x-y,ad=Math.abs(d),body=f===pace?Math.round(ad)+" s/km":(f===clock&&ad<120?Math.round(ad)+" s":f(ad)+u);return`<td class="num" style="color:${Math.abs(d)<0.5?"var(--mut)":((d<0)===lowerBetter?"var(--ok)":"#ff8a5c")}">${Math.abs(d)<0.5?"=":(d>0?"+":"−")+body}</td>`;};
+  const row=(l,va,vb,f,u,lb)=>`<tr><td><b>${l}</b></td><td class="num">${f(va)}${u}</td><td class="num">${f(vb)}${u}</td>${lb==null?"<td></td>":dif(va,vb,f,u,lb)}</tr>`;
+  const tbl=[row("Temps",a.time,b.time,clock,"",null),row("Distance",a.dist/1000,b.dist/1000,x=>fm(x,2)," km",null),row("Allure moyenne",a.avgPace,b.avgPace,pace,"/km",true),
+    ...(a.hr&&b.hr?[row("FC moyenne",a.hr.avg,b.hr.avg,x=>Math.round(x)," bpm",true),row("FC max",a.hr.max,b.hr.max,x=>Math.round(x)," bpm",null)]:[]),
+    ...(a.cad&&b.cad?[row("Cadence",a.cad.avg,b.cad.avg,x=>Math.round(x)," pas/min",null)]:[]),
+    row("Régularité (écart-type)",a.variability.sd,b.variability.sd,x=>fm(x,1)," s/km",true),
+    ...(a.ele&&b.ele?[row("Dénivelé +",a.ele.gain,b.ele.gain,x=>Math.round(x)," m",null)]:[])].join("");
+  const n=Math.min(a.fullSplits.length,b.fullSplits.length),srows=[];for(let i=0;i<n;i++){const x=a.fullSplits[i].pace,y=b.fullSplits[i].pace;srows.push(`<tr><td class="num">${i+1}</td><td class="num">${pace(x)}</td><td class="num">${pace(y)}</td><td class="num" style="color:${x<=y?"var(--ok)":"#ff8a5c"}">${x-y>0?"+":"−"}${Math.abs(Math.round(x-y))} s</td></tr>`);}
+  const W=480,H=260,L=44,R=10,Tp=12,B=34,iw=W-L-R,ih=H-Tp-B,Dm=Math.max(a.dist,b.dist),all=[...a.grid.pace,...b.grid.pace].filter(x=>x!=null),pmin=Math.floor((quantile(all,.02)-6)/15)*15,pmax=Math.ceil((quantile(all,.98)+6)/15)*15;
+  const X=d=>L+d/Dm*iw,Y=p=>Tp+(Math.min(pmax,Math.max(pmin,p))-pmin)/(pmax-pmin)*ih;let sv="";
+  for(let p=pmin;p<=pmax;p+=15)sv+=`<line x1="${L}" x2="${W-R}" y1="${Y(p)}" y2="${Y(p)}" stroke="#1d2734"/><text x="${L-6}" y="${Y(p)+5}" fill="#8b9bb0" font-size="14" text-anchor="end">${pace(p)}</text>`;
+  for(let k=0;k<=Math.floor(Dm/1000);k+=2)sv+=`<text x="${X(k*1000)}" y="${H-10}" fill="#8b9bb0" font-size="14" text-anchor="middle">${k}</text>`;
+  const path=gr=>{let d="",pen=false;gr.pace.forEach((p,i)=>{if(p==null){pen=false;return;}d+=(pen?"L":"M")+X(gr.d[i]).toFixed(1)+","+Y(p).toFixed(1);pen=true;});return d;};
+  sv+=`<path d="${path(b.grid)}" fill="none" stroke="#06b6d4" stroke-width="3"/><path d="${path(a.grid)}" fill="none" stroke="#ff6a2b" stroke-width="3"/>`;
+  return head+`<div class="card"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><span class="chip"><i class="dot" style="background:#ff6a2b"></i>${esc(anaCustom?anaTitle:RACE.name)}</span><span class="chip"><i class="dot" style="background:#06b6d4"></i>${esc(anaCmp.name)}</span><button class="btn" data-cmpclear style="margin-left:auto">Retirer la comparaison</button></div>
+   <div class="grid g2"><div class="tscroll"><table><tr><th></th><th>Cette course</th><th>${esc(anaCmp.name)}</th><th>Écart</th></tr>${tbl}</table></div><div><svg viewBox="0 0 ${W} ${H}" class="achart">${sv}</svg><div class="mut" style="font-size:12.5px">Allure en fonction de la distance (km). L'autre trace est analysée en entier, sans calage.</div></div></div>
+   ${n?`<h3 style="margin:16px 0 6px">Splits kilomètre par kilomètre</h3><div class="tscroll"><table><tr><th>Km</th><th>Cette course</th><th>${esc(anaCmp.name)}</th><th>Écart</th></tr>${srows.join("")}</table></div>`:""}</div>`;
+}
+
+/* ---------- LOT 3 : image de partage ---------- */
+function shareCanvas(a){
+  const W=1080,H=1350,c=document.createElement("canvas");c.width=W;c.height=H;const x=c.getContext("2d");
+  const bg=x.createLinearGradient(0,0,W,H);bg.addColorStop(0,"#0a0d12");bg.addColorStop(1,"#1a1109");x.fillStyle=bg;x.fillRect(0,0,W,H);
+  const gl=x.createRadialGradient(W*.88,60,10,W*.88,60,560);gl.addColorStop(0,"rgba(255,106,43,.38)");gl.addColorStop(1,"rgba(255,106,43,0)");x.fillStyle=gl;x.fillRect(0,0,W,H);
+  const rr=(px,py,w,h,r)=>{x.beginPath();x.moveTo(px+r,py);x.arcTo(px+w,py,px+w,py+h,r);x.arcTo(px+w,py+h,px,py+h,r);x.arcTo(px,py+h,px,py,r);x.arcTo(px,py,px+w,py,r);x.closePath();};
+  const F="system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
+  const lg=x.createLinearGradient(60,60,140,140);lg.addColorStop(0,"#ff6a2b");lg.addColorStop(1,"#ffb020");rr(60,60,84,84,24);x.fillStyle=lg;x.fill();
+  x.fillStyle="#1a0c04";x.font=`900 34px ${F}`;x.textAlign="center";x.fillText("10K",102,114);
+  x.textAlign="left";x.fillStyle="#e8eef6";x.font=`800 46px ${F}`;x.fillText(anaCustom?anaTitle:RACE.name,166,96);
+  x.fillStyle="#8b9bb0";x.font=`600 30px ${F}`;x.fillText(new Date(a.startTs).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}),166,138);
+  const official=anaCustom?a.time:RACE.official;
+  x.fillStyle="#ffb020";x.font=`800 30px ${F}`;x.fillText(anaCustom?"TEMPS DE LA TRACE":"TEMPS OFFICIEL",60,260);
+  x.fillStyle="#fff";x.font=`900 210px ${F}`;x.fillText(clock(official),52,440);
+  const dObj=a.objective?a.objective-official:null;
+  x.font=`700 34px ${F}`;x.fillStyle=dObj!=null&&dObj>=0?"#a3e635":"#8b9bb0";
+  x.fillText(dObj!=null?(dObj>=0?`Objectif ${clock(a.objective)} battu de ${Math.round(dObj)} s`:`Objectif ${clock(a.objective)} manqué de ${Math.round(-dObj)} s`):`${(a.dist/1000).toFixed(2).replace(".",",")} km`,60,500);
+  // tracé
+  const g=a.grid,bx=60,by=540,bw=960,bh=520,lat0=mean(g.lat),cs=Math.cos(lat0*Math.PI/180),xs=g.lon.map(v=>v*cs),ys=g.lat;
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),k=Math.min((bw-80)/(maxx-minx),(bh-80)/(maxy-miny)),ox=bx+(bw-(maxx-minx)*k)/2,oy=by+(bh-(maxy-miny)*k)/2;
+  const P=i=>[ox+(xs[i]-minx)*k,by+bh-(oy-by)-(ys[i]-miny)*k];
+  rr(bx,by,bw,bh,28);x.fillStyle="rgba(255,255,255,.04)";x.fill();x.strokeStyle="rgba(255,255,255,.08)";x.lineWidth=2;x.stroke();
+  const pv=g.pace.filter(v=>v!=null),lo=quantile(pv,.1),hi=quantile(pv,.9);x.lineCap="round";x.lineWidth=9;
+  for(let i=1;i<g.d.length;i++){const p=P(i-1),q=P(i);x.strokeStyle=paceColor(g.pace[i]||a.avgPace,lo,hi);x.beginPath();x.moveTo(p[0],p[1]);x.lineTo(q[0],q[1]);x.stroke();}
+  kmIndices(a).forEach(([km,i])=>{const p=P(i);x.beginPath();x.arc(p[0],p[1],17,0,7);x.fillStyle="#0a0d12";x.fill();x.lineWidth=3;x.strokeStyle="#ff6a2b";x.stroke();x.fillStyle="#fff";x.font=`800 19px ${F}`;x.textAlign="center";x.fillText(km,p[0],p[1]+7);});
+  [[0,"D"],[g.d.length-1,"A"]].forEach(([i,t])=>{const p=P(i);x.beginPath();x.arc(p[0],p[1],20,0,7);x.fillStyle="#ff6a2b";x.fill();x.lineWidth=3;x.strokeStyle="#fff";x.stroke();x.fillStyle="#1a0c04";x.font=`900 20px ${F}`;x.fillText(t,p[0],p[1]+7);});
+  // indicateurs
+  const kp=[["ALLURE",pace(a.avgPace)+"/km"],[a.hr?"FC MOYENNE":"DISTANCE",a.hr?Math.round(a.hr.avg)+" bpm":(a.dist/1000).toFixed(2).replace(".",",")+" km"],[a.cad?"CADENCE":"RÉGULARITÉ",a.cad?Math.round(a.cad.avg)+" pas/min":f1(a.variability.sd)+" s/km"],[a.ele?"DÉNIVELÉ":"SPLIT",a.ele?"+"+Math.round(a.ele.gain)+" m":clock(a.split.first)+" / "+clock(a.split.second)]];
+  const tw=(W-120-3*18)/4;
+  kp.forEach(([l,v],i)=>{const px=60+i*(tw+18);rr(px,1100,tw,150,22);x.fillStyle="rgba(255,255,255,.06)";x.fill();x.strokeStyle="rgba(255,255,255,.1)";x.lineWidth=2;x.stroke();x.textAlign="left";x.fillStyle="#8b9bb0";x.font=`700 21px ${F}`;x.fillText(l,px+22,1146);x.fillStyle="#fff";x.font=`900 ${v.length>9?34:42}px ${F}`;x.fillText(v,px+22,1210);});
+  x.textAlign="left";x.fillStyle="#5f6f84";x.font=`600 26px ${F}`;x.fillText("Allure : vert = rapide, rouge = lent · Prépa 10K",60,1306);
+  return c;
+}
+function drawSharePreview(){
+  const el=$("#shareImg");if(!el||!ANA)return;
+  try{el.src=shareCanvas(ANA).toDataURL("image/png");}catch(e){el.alt="Aperçu indisponible";}
+}
+function shareHtml(a){
+  return`<h2 id="ana-share">Image de partage</h2><div class="card"><div class="grid g2" style="align-items:center"><div><img id="shareImg" alt="Aperçu de l'image de partage" style="width:100%;max-width:340px;border-radius:16px;border:1px solid var(--line);display:block;margin:0 auto"></div><div><p class="mut" style="margin-top:0">Une image 1080 × 1350 de ta course (temps, tracé coloré par allure, indicateurs) à poster sur tes réseaux ou à garder.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn pri" data-sharedl>⬇ Télécharger l'image</button>${navigator.canShare?`<button class="btn" data-sharesend>↗ Partager…</button>`:""}</div><p class="mut" style="font-size:12.5px;margin:12px 0 0">L'image est générée sur ton appareil : rien n'est envoyé nulle part. Elle contient le tracé GPS de ta course.</p></div></div></div>`;
+}
+function shareNative(){
+  shareCanvas(ANA).toBlob(b=>{if(!b)return;const f=new File([b],"course-10k.png",{type:"image/png"});
+    if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:anaTitle}).catch(()=>{});else{saveBlob(b,"course-10k.png");toast("Partage indisponible : image téléchargée");}},"image/png");
+}
+
+/* ---------- LOT 3 : journal des courses (synchronisé avec le reste du suivi) ---------- */
+const entryDate=ts=>new Date(ts).toISOString().slice(0,10);
+function entryFrom(a,name){
+  const curve=[];for(let d=0;d<=a.dist;d+=100){const i=idxAtD(d),p=a.grid.pace[i];curve.push(p==null?null:Math.round(p));}
+  const slug=String(name).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,30)||"course";
+  return{id:entryDate(a.startTs)+"-"+slug,name,ts:a.startTs,time:Math.round(a.time),dist:Math.round(a.dist),avgPace:+a.avgPace.toFixed(1),hrAvg:a.hr?Math.round(a.hr.avg):null,hrMax:a.hr?a.hr.max:null,cad:a.cad?Math.round(a.cad.avg):null,gain:a.ele?Math.round(a.ele.gain):null,sd:+a.variability.sd.toFixed(2),splits:a.fullSplits.map(x=>+x.pace.toFixed(1)),curve};
+}
+function entryToCmp(e){
+  const curve=e.curve.map((p,i)=>({p,d:i*100}));
+  return{time:e.time,dist:e.dist,avgPace:e.avgPace,hr:e.hrAvg!=null?{avg:e.hrAvg,max:e.hrMax}:null,cad:e.cad!=null?{avg:e.cad}:null,ele:e.gain!=null?{gain:e.gain}:null,variability:{sd:e.sd},
+    fullSplits:e.splits.map(p=>({pace:p})),grid:{pace:curve.map(x=>x.p),d:curve.map(x=>x.d)}};
+}
+function journalHtml(a){
+  const J=state.journal||{},list=Object.values(J).sort((x,y)=>y.ts-x.ts);
+  const rows=list.map(e=>`<div class="jrow"><div><b>${esc(e.name)}</b><div class="mut" style="font-size:12.5px">${new Date(e.ts).toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})} · ${(e.dist/1000).toFixed(2).replace(".",",")} km · ${clock(e.time)} · ${pace(e.avgPace)}/km${e.hrAvg?` · FC ${e.hrAvg}`:""}</div></div><div class="jbtn"><button class="btn" data-jcmp="${esc(e.id)}">Comparer</button><button class="btn" data-jdel="${esc(e.id)}" aria-label="Retirer du journal">✕</button></div></div>`).join("");
+  const cur=entryFrom(a,anaCustom?anaTitle:RACE.name),has=!!J[cur.id];
+  return`<h2 id="ana-journal">Journal des courses</h2><div class="card"><div class="mut" style="margin-top:0">Garde un résumé de tes courses (temps, allure, FC, splits) pour les comparer plus tard. Seul le résumé est enregistré, pas le fichier GPX. ${typeof syncCode==="function"&&syncCode()?"Le journal est synchronisé avec tes autres appareils.":"Il reste sur cet appareil tant que la synchronisation n'est pas activée."}</div>
+   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0"><input id="jname" value="${esc(cur.name)}" style="flex:1;min-width:180px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:inherit" aria-label="Nom de la course"><button class="btn pri" data-jadd>${has?"Mettre à jour dans le journal":"+ Ajouter cette course au journal"}</button></div>
+   ${rows||`<div class="mut">Aucune course enregistrée pour l'instant.</div>`}</div>`;
+}
+function journalAdd(){
+  const name=($("#jname").value||"").trim()||anaTitle,e=entryFrom(ANA,name);
+  state.journal=state.journal||{};state.journal[e.id]=e;save();toast("Course ajoutée au journal");renderAnalysis();document.getElementById("ana-journal").scrollIntoView({block:"start"});
+}
+function journalDel(id){if(state.journal)delete state.journal[id];save();renderAnalysis();document.getElementById("ana-journal").scrollIntoView({block:"start"});}
+function journalCompare(id){const e=(state.journal||{})[id];if(!e)return;anaCmp={name:e.name,a:entryToCmp(e)};renderAnalysis();document.getElementById("ana-cmp").scrollIntoView({block:"start"});}

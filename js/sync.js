@@ -14,11 +14,12 @@ function flat(s){
   Object.keys(s.done||{}).forEach(k=>{if(s.done[k])o["d."+k]="1";});
   Object.keys(s.logs||{}).forEach(k=>{o["l."+k]=JSON.stringify(s.logs[k]);});
   Object.keys(s.moves||{}).forEach(k=>{o["m."+k]=s.moves[k];});
+  Object.keys(s.journal||{}).forEach(k=>{o["j."+k]=JSON.stringify(s.journal[k]);});
   o.test=s.test||"";o.target=s.target||"43:00";
   return o;
 }
 const sig=s=>JSON.stringify([Object.entries(flat(s)).sort(),Object.entries(s.mt||{}).sort()]);
-const shared=s=>({done:s.done,logs:s.logs,moves:s.moves||{},test:s.test,target:s.target,mt:s.mt||{}});
+const shared=s=>({done:s.done,logs:s.logs,moves:s.moves||{},journal:s.journal||{},test:s.test,target:s.target,mt:s.mt||{}});
 
 /* Horodate ce qui a changé depuis la dernière sauvegarde (appelé par save()). */
 function stampInit(){lastFlat=flat(state);}
@@ -32,7 +33,7 @@ function stamp(){
 /* Fusion : pour chaque élément, la modification la plus récente gagne (suppression comprise). */
 function mergeStates(a,b){
   const fa=flat(a),fb=flat(b),ma=a.mt||{},mb=b.mt||{};
-  const out={done:{},logs:{},moves:{},test:"",target:"43:00",mt:{},week:a.week};
+  const out={done:{},logs:{},moves:{},journal:{},test:"",target:"43:00",mt:{},week:a.week};
   new Set([...Object.keys(fa),...Object.keys(fb),...Object.keys(ma),...Object.keys(mb)]).forEach(k=>{
     const ta=k in ma?ma[k]:(k in fa?0:-1),tb=k in mb?mb[k]:(k in fb?0:-1);
     const f=ta>=tb?fa:fb,t=Math.max(ta,tb);
@@ -41,6 +42,7 @@ function mergeStates(a,b){
     if(k.startsWith("d."))out.done[k.slice(2)]=true;
     else if(k.startsWith("l."))out.logs[k.slice(2)]=JSON.parse(f[k]);
     else if(k.startsWith("m."))out.moves[k.slice(2)]=f[k];
+    else if(k.startsWith("j."))out.journal[k.slice(2)]=JSON.parse(f[k]);
     else out[k]=f[k];
   });
   return out;

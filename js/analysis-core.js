@@ -101,15 +101,17 @@ function analyzeRun(raw,opt){
   const half=dist/2,tHalf=tAtD(half)-tS,time=tE-tS;
   const h1=tHalf,h2=time-tHalf;
   // fréquence cardiaque, zones, découplage
-  let hr=null;
+  let hr=null,zoneOf=null;
   if(hasHr){
     const hs=g.hr.filter(x=>x!=null),rh=rawHr(tS,tE),maxObs=Math.max(...rh),fcmax=opt.fcmax||maxObs,zt=[0,0,0,0,0];
-    hs.forEach(h=>{const r=h/fcmax;let z=0;while(z<4&&r>=ZONE_BOUNDS[z])z++;zt[z]+=STEP;});
+    const bounds=opt.zoneBpm&&opt.zoneBpm.length===4?opt.zoneBpm.slice():ZONE_BOUNDS.map(b=>Math.round(b*fcmax));
+    zoneOf=h=>{let z=0;while(z<4&&h>=bounds[z])z++;return z;};
+    hs.forEach(h=>{zt[zoneOf(h)]+=STEP;});
     const tot=zt.reduce((a,b)=>a+b,0),hA=[],hB=[];
     g.hr.forEach((h,i)=>{if(h==null)return;(g.t[i]<=tHalf?hA:hB).push(h);});
     const ef1=(half/h1)/mean(hA),ef2=((dist-half)/h2)/mean(hB);
     hr={avg:mean(hs),max:maxObs,min:Math.min(...rh),fcmax,fcmaxObserved:!opt.fcmax,zones:zt.map(s=>({s,pct:s/tot})),
-        avgFirst:mean(hA),avgSecond:mean(hB),decoupling:(ef1-ef2)/ef1*100,pctMax:mean(hs)/fcmax*100};
+        avgFirst:mean(hA),avgSecond:mean(hB),decoupling:(ef1-ef2)/ef1*100,pctMax:mean(hs)/fcmax*100,bounds,custom:!!(opt.zoneBpm&&opt.zoneBpm.length===4)};
   }
   // meilleurs passages (fenêtre glissante en distance)
   const bests=[];
@@ -127,6 +129,17 @@ function analyzeRun(raw,opt){
     const p=(opt.objective+2)/10,pl=fullSp.map((_,i)=>i===0?p+2:i===8?p-1:i===9?p-3:p);let cp=0,ca=0;
     plan=fullSp.map((s,i)=>{cp+=pl[i];ca+=s.time;return{km:s.km,plan:pl[i],delta:s.time-pl[i],cumDelta:ca-cp};});
   }
+  // par kilomètre : foulée, efficacité, temps par zone
+  splits.forEach(sp=>{
+    sp.stride=sp.cad?(1000/sp.pace)/(sp.cad/60):null;
+    sp.eff=sp.hr?(1000/sp.pace*60)/sp.hr:null;
+    sp.zt=null;if(zoneOf){sp.zt=[0,0,0,0,0];g.t.forEach((t,i)=>{if(t>=sp.t0&&t<sp.t1&&g.hr[i]!=null)sp.zt[zoneOf(g.hr[i])]+=STEP;});}
+  });
+  // histogramme des allures (tranches de 10 s/km, durée en secondes)
+  const histMap={};g.pace.forEach(p=>{if(p==null)return;const b=Math.floor(p/10)*10;histMap[b]=(histMap[b]||0)+STEP;});
+  const hist=Object.keys(histMap).map(Number).sort((x,y)=>x-y).map(b=>({lo:b,sec:histMap[b]}));
+  // nuage allure / FC
+  const scatter=[];g.pace.forEach((p,i)=>{if(p!=null&&g.hr[i]!=null&&i%2===0)scatter.push({p,hr:g.hr[i],d:g.d[i]});});
   // virages : changement de cap > 60° (sur ± 3 échantillons de 5 s)
   const bearing=(i,j)=>{const a1=g.lat[i]*Math.PI/180,a2=g.lat[j]*Math.PI/180,dl=(g.lon[j]-g.lon[i])*Math.PI/180;return Math.atan2(Math.sin(dl)*Math.cos(a2),Math.cos(a1)*Math.sin(a2)-Math.sin(a1)*Math.cos(a2)*Math.cos(dl))*180/Math.PI;};
   const turns=[];let lastTurn=-99;
@@ -141,6 +154,12 @@ function analyzeRun(raw,opt){
   const avgP=time/dist*1000;
   scan("slow",p=>p>avgP+20);scan("fast",p=>p<avgP-15);
   moments.sort((x,y)=>x.t-y.t);
+  moments.forEach(m=>{const dd=g.d[m.i1]-g.d[m.i0],tt=g.t[m.i1]-g.t[m.i0];m.paceMean=dd>20?tt/dd*1000:m.pace;m.gain=tt-dd/1000*avgP;});   // gain > 0 : temps perdu
+  const lost=moments.filter(m=>m.kind==="slow").reduce((x,m)=>x+Math.max(0,m.gain),0),won=moments.filter(m=>m.kind==="fast").reduce((x,m)=>x+Math.max(0,-m.gain),0);
+  const strides=splits.filter(x=>x.full&&x.stride).map(x=>x.stride),effs=splits.filter(x=>x.full&&x.eff).map(x=>x.eff);
+  const t90=hasHr&&hr?(()=>{const i=g.hr.findIndex(h=>h!=null&&h>=0.9*hr.max);return i<0?null:g.t[i];})():null;
+  const adv={stride:strides.length?mean(strides):null,strideMin:strides.length?Math.min(...strides):null,strideMax:strides.length?Math.max(...strides):null,eff:effs.length?mean(effs):null,
+    clean:fullSp.filter(x=>Math.abs(x.pace-avgP)<=5).length,lost,won,t90,hr0:hasHr?g.hr[0]:null,hist,scatter};
   // qualité des données
   const inWin=raw.map((p,i)=>i).filter(i=>T[i]>=tS&&T[i]<=tE),dts=[];
   for(let k=1;k<inWin.length;k++)dts.push(T[inWin[k]]-T[inWin[k-1]]);
@@ -149,12 +168,12 @@ function analyzeRun(raw,opt){
   const quality={samples:inWin.length,dtMedian:median(dts),dtMax:dts.length?Math.max(...dts):0,gaps:dts.filter(x=>x>10).length,
     hrCoverage:hasHr?inWin.filter(i=>raw[i].hr!=null).length/inWin.length:0,hrJumps,eleJumps,cadZero:hasCad?inWin.filter(i=>!raw[i].cad).length:0};
   return{
-    points:raw.length,trimmed,trimmedEnd,windowOk,scaled,rawDist,dist,time,total,fullDist:D[D.length-1],rawT:T,rawD:D,
+    startTs:(raw[0].t+tS)*1000,points:raw.length,trimmed,trimmedEnd,windowOk,scaled,rawDist,dist,time,total,fullDist:D[D.length-1],rawT:T,rawD:D,
     timeOfficial:opt.official&&trimmed?opt.official:time,
     avgPace:time/dist*1000,splits,fullSplits:fullSp,
     split:{first:h1,second:h2,diff:Math.round(h2)-Math.round(h1),pct:(Math.round(h2)-Math.round(h1))/time*100},
     variability:{sd:pstdev(pacesKm),range:pacesKm.length?Math.max(...pacesKm)-Math.min(...pacesKm):0,fast:fullSp.length?fullSp.reduce((a,b)=>b.pace<a.pace?b:a):null,slow:fullSp.length?fullSp.reduce((a,b)=>b.pace>a.pace?b:a):null},
-    hr,cad,ele,bests,plan,grid:g,hasHr,hasCad,hasEle,objective:opt.objective,moments,turns,quality
+    hr,cad,ele,bests,plan,grid:g,hasHr,hasCad,hasEle,objective:opt.objective,moments,turns,quality,adv
   };
 }
 
@@ -207,4 +226,10 @@ function buildReport(a,ctx){
   return out;
 }
 
-if(typeof module!=="undefined")module.exports={parseGpx,analyzeRun,buildReport,RACE,haversine,lerp};
+/* Projections (formule de Riegel, exposant 1,06) à partir d'une performance sur une distance */
+function predictTimes(t,dKm){return[[5,"5 km"],[10,"10 km"],[21.0975,"Semi-marathon"],[42.195,"Marathon"]].map(([D,l])=>({D,l,t:t*Math.pow(D/dKm,1.06)}));}
+/* Allures d'entraînement : mêmes rapports que ton plan (calé sur 4'18 au 10 km), appliqués à ta nouvelle allure 10 km */
+const ZONE_RATIOS=[["Z1","Récupération",[1.395,1.473]],["Z2","Endurance fondamentale",[1.279,1.357]],["Z3","Seuil",[1.047,1.066]],["Z4","Allure 10 km",[0.992,1.008]],["Z5","Allure 5 km / VMA longue",[0.950,0.969]],["Z6","Vitesse / VMA courte",[0.872,0.911]]];
+function trainingPaces(p10){return ZONE_RATIOS.map(([z,n,[a,b]])=>({z,n,lo:p10*a,hi:p10*b}));}
+
+if(typeof module!=="undefined")module.exports={parseGpx,analyzeRun,buildReport,RACE,haversine,lerp,predictTimes,trainingPaces};

@@ -150,7 +150,7 @@ function importBackup(text){
   try{
     const o=JSON.parse(text),st=o&&o.state?o.state:o;
     if(!st||typeof st!=="object"||typeof st.done!=="object"||typeof st.logs!=="object")throw 0;
-    state=Object.assign({done:{},logs:{},moves:{},test:"",week:null,target:"43:00"},st);
+    state=Object.assign({done:{},logs:{},moves:{},journal:{},test:"",week:null,target:"43:00"},st);
     save();week=curWeek();renderPaces();refresh();toast("Suivi importé");
   }catch(e){toast("Fichier non reconnu");}
 }
