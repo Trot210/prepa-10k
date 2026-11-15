@@ -205,3 +205,16 @@ footer{color:var(--mut);font-size:12.5px;text-align:center;padding:20px 0 40px}
   body.printband #band{display:block}
   #band .pband{margin:0 0 9mm;break-inside:avoid}
 }
+
+/* analyse de course */
+.chartbox{position:relative}
+.achart{width:100%;height:auto;display:block}
+.tip{display:none;position:absolute;top:8px;transform:translateX(-50%);pointer-events:none;background:rgba(10,13,18,.96);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.45;white-space:nowrap;z-index:5;font-variant-numeric:tabular-nums}
+.mapbox{height:400px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#0d1218}
+@media(max-width:620px){.mapbox{height:320px}}
+.kmpin{width:24px;height:24px;border-radius:50%;background:#0a0d12;color:#fff;border:2px solid #ff6a2b;display:grid;place-items:center;font:800 11px/1 Inter,system-ui,sans-serif;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.kmpin.se{background:#ff6a2b;color:#1a0c04;border-color:#fff}
+.zrow{display:grid;grid-template-columns:minmax(120px,1.5fr) 1fr 48px 44px;gap:10px;align-items:center;margin:9px 0;font-size:13.5px}
+.zrow .zn small{display:block;font-size:11.5px}
+.leaflet-container{font:inherit;background:#0d1218}
+.mapbox .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.7)}
