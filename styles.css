@@ -276,3 +276,4 @@ tr.sel td{background:#1d2937!important}
 .momhud .mh{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13.5px}
 .momhud .mhs{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
 .momhud .mhs b{display:block;color:var(--text);font-size:20px;letter-spacing:-.02em;text-transform:none;font-variant-numeric:tabular-nums}
+.momchart{margin-top:10px}

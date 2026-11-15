@@ -571,7 +571,7 @@ function momStart(i){
   MOM.speed=Math.max(1,(MOM.t1-MOM.t0)/9);                       // le moment se déroule en 9 s environ
   const slow=m.kind==="slow",col=slow?"#ef4444":"#a3e635";
   const h=$("#momHud");
-  if(h){h.hidden=false;h.innerHTML=`<div class="mh"><span class="momi" style="background:${col}">${slow?"▼":"▲"}</span><b>${slow?"Ralentissement":"Accélération"}</b><span class="mut">km ${f1(m.d0/1000)} → ${f1(m.d1/1000)} · ${Math.round(m.dur)} s · ${pace(m.pace)}/km${m.nearTurn?" · virage à proximité":""}</span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn" data-momplay>↻ Rejouer</button><button class="btn" data-momclose aria-label="Fermer">✕</button></span></div><div class="mhs"><span>Chrono<b id="mmT">—</b></span><span>Distance<b id="mmD">—</b></span><span>Allure<b id="mmP">—</b></span>${a.hasHr?`<span>FC<b id="mmH">—</b></span>`:""}</div>`;}
+  if(h){h.hidden=false;h.innerHTML=`<div class="mh"><span class="momi" style="background:${col}">${slow?"▼":"▲"}</span><b>${slow?"Ralentissement":"Accélération"}</b><span class="mut">km ${f1(m.d0/1000)} → ${f1(m.d1/1000)} · ${Math.round(m.dur)} s · ${pace(m.pace)}/km${m.nearTurn?" · virage à proximité":""}</span><span style="margin-left:auto;display:flex;gap:8px"><button class="btn" data-momplay>↻ Rejouer</button><button class="btn" data-momclose aria-label="Fermer">✕</button></span></div><div class="mhs"><span>Chrono<b id="mmT">—</b></span><span>Distance<b id="mmD">—</b></span><span>Allure<b id="mmP">—</b></span>${a.hasHr?`<span>FC<b id="mmH">—</b></span>`:""}</div><div id="momChart" class="momchart"></div>`;momChartBuild(m);}
   if(anaMap&&window.L){
     MOM.mk=L.circleMarker([g.lat[m.i0],g.lon[m.i0]],{radius:10,color:"#fff",weight:3,fillColor:col,fillOpacity:1,interactive:false}).addTo(anaMap);
     MOM.line=L.polyline([],{color:col,weight:9,opacity:1,lineCap:"round"}).addTo(anaMap);
@@ -583,6 +583,7 @@ function momRender(){
   const ll=[lerp(g.t,g.lat,t),lerp(g.t,g.lon,t)],pf=RP.pf||g.pace.map(p=>p==null?a.avgPace:p),set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
   set("#mmT",mmss(t));set("#mmD",(lerp(g.t,g.d,t)/1000).toFixed(2).replace(".",",")+" km");set("#mmP",pace(lerp(g.t,pf,t))+"/km");if(a.hasHr)set("#mmH",Math.round(lerp(g.t,g.hr,t))+" bpm");
   if(MOM.mk){MOM.mk.setLatLng(ll);const i0=idxByT(MOM.t0),i1=idxByT(t),pts=[];for(let k=i0;k<=i1;k++)pts.push([g.lat[k],g.lon[k]]);pts.push(ll);MOM.line.setLatLngs(pts);}
+  momChartCursor(t,lerp(g.t,pf,t),a.hasHr?lerp(g.t,g.hr,t):null);
   setHover(idxByT(t));if(anaMarker)anaMarker.setStyle({opacity:0,fillOpacity:0});
 }
 function momLoop(now){
@@ -592,4 +593,33 @@ function momLoop(now){
   if(MOM.t>=MOM.t1){MOM.t=MOM.t1;MOM.playing=false;}
   momRender();
   if(MOM.playing)MOM.raf=requestAnimationFrame(momLoop);
+}
+
+/* mini-graphique zoomé sur le moment : allure et FC, avec un curseur qui avance en même temps que le point sur la carte */
+function momChartBuild(m){
+  const a=ANA,g=a.grid,host=$("#momChart");MOM.ch=null;if(!host)return;
+  const pf=RP.pf||g.pace.map(p=>p==null?a.avgPace:p),i0=idxByT(MOM.t0),i1=idxByT(MOM.t1);
+  const ks=[];for(let k=i0;k<=i1;k++)ks.push(k);
+  const W=480,H=170,L=44,R=a.hasHr?40:12,Tp=14,B=26,iw=W-L-R,ih=H-Tp-B,span=(MOM.t1-MOM.t0)||1;
+  const pv=ks.map(k=>pf[k]),pmin=Math.floor((Math.min(...pv,a.avgPace)-6)/10)*10,pmax=Math.ceil((Math.max(...pv,a.avgPace)+6)/10)*10;
+  const hv=a.hasHr?ks.map(k=>g.hr[k]):[],hmin=hv.length?Math.floor(Math.min(...hv)-3):0,hmax=hv.length?Math.ceil(Math.max(...hv)+3):1;
+  const X=t=>L+(t-MOM.t0)/span*iw,Yp=p=>Tp+(Math.min(pmax,Math.max(pmin,p))-pmin)/(pmax-pmin)*ih,Yh=h=>Tp+ih-(h-hmin)/(hmax-hmin||1)*ih;
+  const col=m.kind==="slow"?"#ef4444":"#a3e635",xa=X(g.t[m.i0]),xb=X(Math.min(MOM.t1,g.t[m.i1]+5));
+  let sv=`<rect x="${xa}" y="${Tp}" width="${Math.max(2,xb-xa)}" height="${ih}" fill="${col}" fill-opacity=".14"/>`;
+  for(let p=pmin;p<=pmax;p+=10)sv+=`<line x1="${L}" x2="${W-R}" y1="${Yp(p)}" y2="${Yp(p)}" stroke="#1d2734"/><text x="${L-6}" y="${Yp(p)+5}" fill="#ff9a66" font-size="13" text-anchor="end">${pace(p)}</text>`;
+  sv+=`<line x1="${L}" x2="${W-R}" y1="${Yp(a.avgPace)}" y2="${Yp(a.avgPace)}" stroke="#a855f7" stroke-dasharray="2 5" stroke-width="2"/>`;
+  const path=(ys,Y)=>ks.map((k,j)=>(j?"L":"M")+X(g.t[k]).toFixed(1)+","+Y(ys[j]).toFixed(1)).join("");
+  if(hv.length)sv+=`<path d="${path(hv,Yh)}" fill="none" stroke="#ef4444" stroke-width="2"/>`;
+  sv+=`<path d="${path(pv,Yp)}" fill="none" stroke="#ff6a2b" stroke-width="3" stroke-linejoin="round"/>`;
+  sv+=`<text x="${L}" y="${H-7}" fill="#8b9bb0" font-size="13">${mmss(MOM.t0)}</text><text x="${W-R}" y="${H-7}" fill="#8b9bb0" font-size="13" text-anchor="end">${mmss(MOM.t1)}</text>`;
+  sv+=`<line id="mcL" y1="${Tp}" y2="${Tp+ih}" x1="${L}" x2="${L}" stroke="#fff" stroke-width="2.5"/><circle id="mcP" r="6" cx="${L}" cy="${Yp(pv[0])}" fill="#ff6a2b" stroke="#fff" stroke-width="2.5"/>`;
+  if(hv.length)sv+=`<circle id="mcH" r="5" cx="${L}" cy="${Yh(hv[0])}" fill="#ef4444" stroke="#fff" stroke-width="2"/>`;
+  host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" class="achart">${sv}</svg><div class="mut" style="font-size:12px">Zoom sur le moment : allure (orange), FC (rouge), allure moyenne (pointillé violet). La zone colorée est le moment détecté.</div>`;
+  MOM.ch={X,Yp,Yh};
+}
+function momChartCursor(t,p,hr){
+  const c=MOM.ch;if(!c)return;const x=c.X(t),L=$("#mcL"),P=$("#mcP"),H=$("#mcH");
+  if(L){L.setAttribute("x1",x);L.setAttribute("x2",x);}
+  if(P&&p!=null){P.setAttribute("cx",x);P.setAttribute("cy",c.Yp(p));}
+  if(H&&hr!=null){H.setAttribute("cx",x);H.setAttribute("cy",c.Yh(hr));}
 }
