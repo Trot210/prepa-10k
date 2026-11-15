@@ -58,9 +58,13 @@ function analyzeRun(raw,opt){
   const t0=raw[0].t,T=raw.map(p=>p.t-t0),D=[0];
   for(let i=1;i<raw.length;i++)D.push(D[i-1]+haversine(raw[i-1],raw[i]));
   const total=T[T.length-1];
-  const trimmed=opt.align&&opt.official&&total>opt.official+5?total-opt.official:0;
-  const tS=trimmed,tE=total,dS=lerp(T,D,tS),rawDist=lerp(T,D,tE)-dS;
-  const scaled=!!(opt.align&&opt.distance&&trimmed&&Math.abs(opt.distance/rawDist-1)<0.03);
+  let tS=0,tE=total;
+  if(opt.trimStart!=null||opt.trimEnd!=null){tS=Math.max(0,opt.trimStart||0);tE=total-Math.max(0,opt.trimEnd||0);}
+  else if(opt.align&&opt.official&&total>opt.official+5)tS=total-opt.official;
+  if(tE-tS<60){tS=0;tE=total;}
+  const trimmed=tS,trimmedEnd=total-tE,dS=lerp(T,D,tS),rawDist=lerp(T,D,tE)-dS;
+  const windowOk=!!(opt.official&&Math.abs((tE-tS)-opt.official)<=3);
+  const scaled=!!(opt.distance&&windowOk&&Math.abs(opt.distance/rawDist-1)<0.03);
   const sc=scaled?opt.distance/rawDist:1,dist=rawDist*sc;
   const dAt=t=>(lerp(T,D,Math.min(tE,Math.max(tS,t)))-dS)*sc;                 // distance (m) depuis le début de fenêtre
   const tAtD=x=>{const target=x/sc+dS;return lerp(D,T,Math.min(D[D.length-1],Math.max(0,target)));}; // temps (s de trace) à la distance x
@@ -123,13 +127,34 @@ function analyzeRun(raw,opt){
     const p=(opt.objective+2)/10,pl=fullSp.map((_,i)=>i===0?p+2:i===8?p-1:i===9?p-3:p);let cp=0,ca=0;
     plan=fullSp.map((s,i)=>{cp+=pl[i];ca+=s.time;return{km:s.km,plan:pl[i],delta:s.time-pl[i],cumDelta:ca-cp};});
   }
+  // virages : changement de cap > 60° (sur ± 3 échantillons de 5 s)
+  const bearing=(i,j)=>{const a1=g.lat[i]*Math.PI/180,a2=g.lat[j]*Math.PI/180,dl=(g.lon[j]-g.lon[i])*Math.PI/180;return Math.atan2(Math.sin(dl)*Math.cos(a2),Math.cos(a1)*Math.sin(a2)-Math.sin(a1)*Math.cos(a2)*Math.cos(dl))*180/Math.PI;};
+  const turns=[];let lastTurn=-99;
+  for(let i=3;i<g.lat.length-3;i++){let dd=Math.abs(bearing(i,i+3)-bearing(i-3,i));if(dd>180)dd=360-dd;if(dd>60&&i-lastTurn>4){turns.push(i);lastTurn=i;}}
+  // moments clés : ralentissements (> +20 s/km) et accélérations (> 15 s/km plus vite) d'au moins 10 s
+  const moments=[];
+  const scan=(kind,test)=>{let cur=null;const flush=i=>{if(!cur)return;const i1=i-1,dur=g.t[i1]-g.t[cur.i0]+STEP;if(dur>=10){const ps=g.pace.slice(cur.i0,i1+1).filter(x=>x!=null),ext=kind==="slow"?Math.max(...ps):Math.min(...ps);
+      moments.push({kind,i0:cur.i0,i1,t:g.t[cur.i0],dur,d0:g.d[cur.i0],d1:g.d[i1],pace:ext,delta:ext-time/dist*1000,hr:hasHr?mean(g.hr.slice(cur.i0,i1+1)):null,
+        nearTurn:turns.some(k=>k>=cur.i0-2&&k<=i1+2)});}cur=null;};
+    for(let i=0;i<g.pace.length;i++){const p=g.pace[i];if(p!=null&&test(p)){if(!cur)cur={i0:i};cur.last=i;}else if(cur&&i-cur.last>2)flush(cur.last+1);}
+    flush(cur?cur.last+1:0);};
+  const avgP=time/dist*1000;
+  scan("slow",p=>p>avgP+20);scan("fast",p=>p<avgP-15);
+  moments.sort((x,y)=>x.t-y.t);
+  // qualité des données
+  const inWin=raw.map((p,i)=>i).filter(i=>T[i]>=tS&&T[i]<=tE),dts=[];
+  for(let k=1;k<inWin.length;k++)dts.push(T[inWin[k]]-T[inWin[k-1]]);
+  const hrJumps=hasHr?inWin.filter((i,k)=>k>0&&raw[i].hr!=null&&raw[inWin[k-1]].hr!=null&&Math.abs(raw[i].hr-raw[inWin[k-1]].hr)>12).length:0;
+  const eleJumps=hasEle?inWin.filter((i,k)=>k>0&&raw[i].ele!=null&&raw[inWin[k-1]].ele!=null&&Math.abs(raw[i].ele-raw[inWin[k-1]].ele)>3).length:0;
+  const quality={samples:inWin.length,dtMedian:median(dts),dtMax:dts.length?Math.max(...dts):0,gaps:dts.filter(x=>x>10).length,
+    hrCoverage:hasHr?inWin.filter(i=>raw[i].hr!=null).length/inWin.length:0,hrJumps,eleJumps,cadZero:hasCad?inWin.filter(i=>!raw[i].cad).length:0};
   return{
-    points:raw.length,trimmed,scaled,rawDist,dist,time,total,fullDist:D[D.length-1],
+    points:raw.length,trimmed,trimmedEnd,windowOk,scaled,rawDist,dist,time,total,fullDist:D[D.length-1],rawT:T,rawD:D,
     timeOfficial:opt.official&&trimmed?opt.official:time,
     avgPace:time/dist*1000,splits,fullSplits:fullSp,
     split:{first:h1,second:h2,diff:Math.round(h2)-Math.round(h1),pct:(Math.round(h2)-Math.round(h1))/time*100},
     variability:{sd:pstdev(pacesKm),range:pacesKm.length?Math.max(...pacesKm)-Math.min(...pacesKm):0,fast:fullSp.length?fullSp.reduce((a,b)=>b.pace<a.pace?b:a):null,slow:fullSp.length?fullSp.reduce((a,b)=>b.pace>a.pace?b:a):null},
-    hr,cad,ele,bests,plan,grid:g,hasHr,hasCad,hasEle,objective:opt.objective
+    hr,cad,ele,bests,plan,grid:g,hasHr,hasCad,hasEle,objective:opt.objective,moments,turns,quality
   };
 }
 
