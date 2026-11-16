@@ -187,7 +187,7 @@ function openS(id){
   const zs=[...new Set(s.segs.map(x=>x.z))].filter(z=>z!=="W");
   $("#panel").style.setProperty("--tc",t.c);
   $("#panel").innerHTML=`<div class="phd"><button class="close" data-close>×</button><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${badge(s.type)}${s.cp?`<span class="cpTag">Point de contrôle ${s.cp}</span>`:""}${s.opt?`<span class="badge" style="border:1px dashed #3a4a60;color:var(--mut)">optionnel</span>`:""}</div>
-   <h2>${s.title}</h2><div class="mut" style="text-transform:capitalize">${fdate(sdate(s),{weekday:"long",day:"numeric",month:"long"})} · semaine ${s.wk}${state.moves&&state.moves[s.id]?` · <span style="text-transform:none">prévue le ${fdate(s.date,{day:"numeric",month:"short"})}</span>`:""}</div>
+   <h2>${s.title}</h2><div class="mut capf">${fdate(sdate(s),{weekday:"long",day:"numeric",month:"long"})} · semaine ${s.wk}${state.moves&&state.moves[s.id]?` · <span>prévue le ${fdate(s.date,{day:"numeric",month:"short"})}</span>`:""}</div>
    <div class="stats"><div class="stat"><div class="l">Durée</div><div class="v">${dur(s.t)}</div></div><div class="stat"><div class="l">Distance</div><div class="v">${km(s.d)} km</div></div>${s.race?`<div class="stat"><div class="l">Allure course</div><div class="v">${pace(rp.p)}/km</div></div>`:""}</div>
    <div style="margin-top:14px">${profile(s.segs,90,"profBig")}</div>
    <div class="legend" style="margin-top:8px">${zs.map(z=>`<span><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n} · ${zlab(z)}</span>`).join("")}</div></div>
@@ -203,7 +203,7 @@ function openS(id){
    <div class="sec"><h4>Sur ma montre</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · ${s.cy==="10k"?"allures":"cibles FC et allures"} et répétitions incluses</span></div>${FIT_HELP}</div></div>
    <div class="sec"><h4>Mon ressenti</h4><div class="form">
     <div class="fld"><label>Distance réelle (km)</label><input id="lDist" inputmode="decimal" value="${l.dist||""}" placeholder="${km(s.d)}"></div>
-    <div class="fld"><label>Durée (h:mm:ss)</label><input id="lDur" value="${l.dur||""}" placeholder="${clock(s.t).replace("'",":")}"></div>
+    <div class="fld"><label>Durée (h:mm:ss)</label><input id="lDur" value="${l.dur||""}" placeholder="${clock(s.t).replace("h",":").replace("'",":")}"></div>
     <div class="fld"><label>FC moyenne</label><input id="lFc" inputmode="numeric" value="${l.fc||""}" placeholder="bpm"></div>
     <div class="fld full"><label>Effort ressenti (RPE) : <b id="rpeV">${l.rpe||"–"}</b> / 10</label><input type="range" id="lRpe" min="1" max="10" value="${l.rpe||5}"></div>
     <div class="fld full"><label>Notes (allures des blocs, sensations, météo…)</label><textarea id="lNote" rows="3">${l.note||""}</textarea></div></div>
@@ -222,12 +222,12 @@ function renderPaces(){
     $("#pacesProseH").innerHTML=`<h3>La logique des intensités</h3><p><b>Le facile se pilote à la FC, le dur à l'allure.</b> Récupération, endurance fondamentale et parties faciles des sorties longues : <b>plafond de 138 bpm</b>, quelle que soit l'allure. Fractionnés, fartlek et seuil : à l'allure, car sur des efforts de quelques minutes la FC réagit trop lentement pour guider l'effort.</p>
     <p>Les allures de qualité sont recalculées sur ton 10 km du 15 novembre (<b>42'32, 4'15/km</b>) : seuil 4'27 – 4'32, allure 10 km 4'13 – 4'17, allure 5 km 4'02 – 4'07, VMA courte 3'45 – 3'55.</p>
     <p>Les allures indiquées pour l'EF et la récupération ne servent qu'à <b>estimer les distances</b>. Si tu cours plus lentement que prévu sous 138 bpm, c'est normal, et c'est exactement le but.</p>
-    <div class="tscroll" style="margin-top:10px"><table><tr><th>Tes zones Garmin</th>${GARMIN_ZONES.map(g=>`<th>${g[0]}</th>`).join("")}</tr><tr><td class="mut">bpm</td>${GARMIN_ZONES.map(g=>`<td class="num">${g[1]}</td>`).join("")}</tr></table></div>`;
-    $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>FC</th><th>Zone Garmin</th><th>Allure</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+CY.zones.map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num">${Z[z].hr?`<b>${Z[z].fc}</b>`:Z[z].fc}</td><td class="mut">${Z[z].gz}</td><td class="num">${Z[z].hr?`<span class="mut">${Z[z].r}</span>`:`<b>${Z[z].r}</b>`}</td><td class="num">${Z[z].rpe}</td><td>${Z[z].feel}</td><td class="mut">${Z[z].use}</td></tr>`).join("");
+    <div class="kpi" style="margin-top:12px"><div class="lab">Tes zones Garmin (bpm)</div></div><div class="gzones">${GARMIN_ZONES.map(g=>`<div><span>${g[0]}</span><b>${g[1].replace(/ – /,"–")}</b></div>`).join("")}</div>`;
+    $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>FC</th><th>Zone Garmin</th><th>Allure</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+CY.zones.map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num" data-l="FC">${Z[z].hr?`<b>${Z[z].fc}</b>`:Z[z].fc}</td><td class="mut" data-l="Zone Garmin">${Z[z].gz}</td><td class="num" data-l="Allure">${Z[z].hr?`<span class="mut">${Z[z].r}</span>`:`<b>${Z[z].r}</b>`}</td><td class="num" data-l="RPE">${Z[z].rpe}</td><td class="wide">${Z[z].feel}</td><td class="mut wide">${Z[z].use}</td></tr>`).join("");
     $("#zoneNote").innerHTML="En gras : la référence de chaque zone. FC pour la récupération, l'EF et l'endurance active ; allure pour le seuil et au-delà. Les FC de seuil et d'allure 10 km sont des repères observés sur ton 10 km (FC moyenne 180, max 189) et sur ton tempo d'octobre (4'35 à 178).";
   }else{
   $("#zoneNote").innerHTML="%FCmax indicatifs, seulement si tu connais ta vraie FCmax (pas la formule 220 − âge). Pour l'EF, le test de la conversation prime sur la montre. Sur les fractions de moins de 2 min, la FC n'a pas le temps de monter : fie-toi à l'allure.";
-  $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>Allure</th><th>%FCmax</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+["Z1","Z2","Z3","Z4","Z5","Z6"].map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num">${zr(z)}</td><td class="num">${Z[z].fc}</td><td class="num">${Z[z].rpe}</td><td>${Z[z].feel}</td><td class="mut">${Z[z].use}</td></tr>`).join("");
+  $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>Allure</th><th>%FCmax</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+["Z1","Z2","Z3","Z4","Z5","Z6"].map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num" data-l="Allure">${zr(z)}</td><td class="num" data-l="%FCmax">${Z[z].fc}</td><td class="num" data-l="RPE">${Z[z].rpe}</td><td class="wide">${Z[z].feel}</td><td class="mut wide">${Z[z].use}</td></tr>`).join("");
   }
   $("#t5").value=state.test||"";$("#tgt").value=state.target||"43:00";
   renderCalc();renderSplits();
@@ -363,5 +363,19 @@ $("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances c
 $("#fitHelpPlan").innerHTML=FIT_HELP;
 $("#bkFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;f.text().then(importBackup);e.target.value="";});
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+/* typographie : ne jamais couper « 138 bpm », « ≤ 138 », « 4'27 – 4'32 » ou « 3 × 6' » en fin de ligne */
+const NB=" ";
+function nbspText(t){return t
+  .replace(/(\d['’"]?) (?=(?:bpm|km|min|m|s|h|%|jours?|semaines?|séances?)(?![\p{L}]))/gu,"$1"+NB)
+  .replace(/(\d['’"]?) ([×–\-]) (?=\d)/g,"$1"+NB+"$2"+NB)
+  .replace(/([≤≥≈×~]) (?=\d)/g,"$1"+NB);}
+function nbspTree(root){
+  if(root.nodeType===3){const v=nbspText(root.data);if(v!==root.data)root.data=v;return;}
+  if(root.nodeType!==1||/^(SCRIPT|STYLE|TEXTAREA|INPUT)$/.test(root.nodeName))return;
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentNode&&/^(SCRIPT|STYLE|TEXTAREA)$/.test(n.parentNode.nodeName)?2:1});
+  for(let n=w.nextNode();n;n=w.nextNode()){const v=nbspText(n.data);if(v!==n.data)n.data=v;}}
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(nbspTree))).observe(document.body,{childList:true,subtree:true});
+
 renderCycBar();renderDash();renderPlan();renderPaces();renderGuide();
+nbspTree(document.body);
 syncInit();

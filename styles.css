@@ -80,7 +80,8 @@ h3{font-size:16px;margin:0 0 8px;letter-spacing:-.01em}
 .sess.done{background:linear-gradient(180deg,rgba(163,230,53,.06),var(--card) 40%)}
 .sess.opt{border-style:dashed;border-top-style:solid;opacity:.9}
 .sess .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.sess .date{font-size:12.5px;color:var(--mut);font-weight:600;text-transform:capitalize}
+.sess .date{display:inline-block;font-size:12.5px;color:var(--mut);font-weight:600}
+.sess .date::first-letter,.capf::first-letter{text-transform:uppercase}
 .sess h3{font-size:17px;margin:0}
 .meta{display:flex;gap:14px;font-size:13px;color:var(--mut);font-weight:600}
 .meta b{color:var(--text);font-variant-numeric:tabular-nums}
@@ -159,7 +160,7 @@ td.num{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
 .next{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);background:var(--text);color:#0a0d12;padding:10px 16px;border-radius:12px;font-weight:700;font-size:14px;opacity:0;transition:.25s;z-index:60;pointer-events:none}
 .toast.on{opacity:1;transform:translateX(-50%)}
-footer{color:var(--mut);font-size:12.5px;text-align:center;padding:20px 0 40px}
+footer{color:var(--mut);font-size:12.5px;text-align:center;max-width:1180px;margin:0 auto;padding:20px 16px calc(40px + env(safe-area-inset-bottom))}
 
 /* mode course et bracelet */
 .bigov{position:fixed;inset:0;z-index:70;background:var(--bg);overflow-y:auto;padding:max(16px,env(safe-area-inset-top)) 16px 28px;display:none}
@@ -282,3 +283,39 @@ tr.sel td{background:#1d2937!important}
 .cycbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
 .cycbar .lab{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
 .cycbar .seg .btn{padding:7px 12px;font-size:13px}
+
+.gzones{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:6px}
+.gzones div{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:7px 4px;text-align:center}
+.gzones span{display:block;font-size:11px;font-weight:700;color:var(--mut)}
+.gzones b{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:430px){.gzones{gap:4px}.gzones div{padding:6px 1px}.gzones b{font-size:12px;letter-spacing:-.02em}}
+/* semaines : une seule rangée de boutons sur téléphone, dates en dessous */
+@media(max-width:620px){
+  .weekNav{gap:5px}
+  .weekNav .wbtn{flex:1 1 0;min-width:0;padding:9px 0;text-align:center}
+  .weekNav>span{flex-basis:100%;margin-left:2px!important}
+}
+/* tableau des zones : une fiche par zone sur téléphone */
+@media(max-width:620px){
+  .ztab,.ztab tbody{display:block}
+  .ztab tr:first-child{display:none}
+  .ztab tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .ztab td{display:block;padding:0;border:0;white-space:normal}
+  .ztab td:first-child,.ztab td.wide{grid-column:1/-1}
+  .ztab td[data-l]:before{content:attr(data-l);display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  .ztab td.wide{font-size:13.5px}
+}
+
+/* iPhone : encoche, Dynamic Island, barre d'accueil et zoom des champs */
+.top{padding-top:env(safe-area-inset-top)}
+@media(display-mode:standalone){.top{padding-top:calc(env(safe-area-inset-top) + 14px)}}
+.wrap,footer{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.toast{bottom:calc(22px + env(safe-area-inset-bottom))}
+.bigov .close{top:max(14px,env(safe-area-inset-top))!important}
+@media(max-width:620px){
+  .phd{padding-top:calc(20px + env(safe-area-inset-top))}
+  .phd .close{top:calc(14px + env(safe-area-inset-top))}
+  .pbd{padding-bottom:calc(26px + env(safe-area-inset-bottom))}
+}
+@media(pointer:coarse){input:not([type=range]):not([type=checkbox]):not([type=file]),textarea,select{font-size:max(16px,1em)}}
+button,a,label,.day,.phase{-webkit-tap-highlight-color:transparent}
