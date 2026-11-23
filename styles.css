@@ -319,3 +319,5 @@ tr.sel td{background:#1d2937!important}
 }
 @media(pointer:coarse){input:not([type=range]):not([type=checkbox]):not([type=file]),textarea,select{font-size:max(16px,1em)}}
 button,a,label,.day,.phase{-webkit-tap-highlight-color:transparent}
+
+a.btn{color:inherit;text-decoration:none;display:inline-block}
