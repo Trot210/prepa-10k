@@ -103,7 +103,7 @@ function renderDash(){
     $("#kpiRow").innerHTML=kp("Dernier 10 km","46'26","10 km Adidas · 4'39/km")+kp("Équivalent semi","≈ 45'35","1h40'37 converti (Riegel)")+kp("Écart à combler","−3'26","−7,4 % vs 46'26 · −20 s/km")+kp("Allure de course",pace(rp.p),rp.src==="test"?"d'après ton test 5 km · ≈ "+clock(rp.p*10-2):"provisoire · fixée au test du 8 nov.");
   }else{
     const t=testH(),v=t&&testVerdict(t);
-    $("#kpiRow").innerHTML=kp("Référence 10 km","42'32","15 nov. · 4'15/km")+kp("Équivalent 5 km","≈ 20'24","42'32 ÷ 2,085")+kp("Plafond EF","≤ 138 bpm","zone 2 Garmin : 118 – 137")+kp("Test du 31 déc.",t?clock(t):"à venir",t?v[0]:"≤ 20'15 progrès · ≤ 20'45 maintenu",t?` style="color:${v[1]}"`:"");
+    $("#kpiRow").innerHTML=kp("Référence 10 km","42'32","15 nov. · 4'15/km")+(()=>{const vm=vmaMeasured();return kp("VMA",vm?kmh(vm)+" km/h":"≈ "+kmh(VMA_EST)+" km/h",vm?"test demi-Cooper · "+state.logs.vma.d+" m en 6'":"estimée sur ton 10 km · test le 1er déc.");})()+kp("Plafond EF","≤ 138 bpm","zone 2 Garmin : 118 – 137")+kp("Test du 31 déc.",t?clock(t):"à venir",t?v[0]:"≈ 20'24 attendu · ≤ 20'15 progrès",t?` style="color:${v[1]}"`:"");
   }
   // next session
   const nx=MAIN.filter(s=>!state.done[s.id]&&sdate(s)>=TODAY).sort((a,b)=>sdate(a).localeCompare(sdate(b)))[0]||MAIN.find(s=>!state.done[s.id]&&sdate(s)>=TODAY);
@@ -198,6 +198,7 @@ function openS(id){
    <div class="sec"><h4>Pourquoi cette séance</h4><div>${s.why}</div></div>
    <div class="sec"><h4>Consignes</h4><ul style="margin:0;padding-left:18px">${s.tips.map(x=>`<li style="margin:4px 0">${x}</li>`).join("")}</ul></div>
    ${s.cpTxt?`<div class="sec"><div class="note cp"><b>Point de contrôle ${s.cp}</b><br>${s.cpTxt}${s.cp===3?`<div style="margin-top:10px"><button class="btn pri" data-gotest>Ouvrir le calculateur</button></div>`:""}</div></div>`:""}
+   ${s.vmaTest?`<div class="sec"><div class="note cp"><b>Après le test</b><br>${vmaMeasured()?`Résultat enregistré : <b>${state.logs.vma.d} m</b>, soit une VMA de <b>${kmh(vmaMeasured())} km/h</b>. Les fractionnés des 8, 15 et 22 décembre sont recalés dessus.`:`Entre la distance parcourue en 6' : ta VMA et tes allures sont calculées, et les fractionnés des 8, 15 et 22 décembre se recalent automatiquement.`}<div style="margin-top:10px"><button class="btn pri" data-gotest="vma">${vmaMeasured()?"Voir mes allures VMA":"Entrer mon résultat"}</button></div></div></div>`:""}
    <div class="sec"><div class="note warn"><b>Fatigue ou séance raccourcie</b><br>${s.tired}</div></div>
    ${(s.id==="w4c"||dn||cycleOf(s).lastMove<TODAY)?"":`<div class="sec"><h4>Déplacer la séance</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="date" id="mvDate" value="${sdate(s)<TODAY?TODAY:sdate(s)}" min="${TODAY}" max="${cycleOf(s).lastMove}" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:inherit"><button class="btn pri" data-move="${id}">Déplacer</button>${state.moves&&state.moves[id]?`<button class="btn" data-unmove="${id}">Date prévue (${fdate(s.date,{day:"numeric",month:"short"})})</button>`:""}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Le calendrier (.ics) et les fichiers de la montre suivent la nouvelle date. Évite deux séances intenses de suite.</div></div></div>`}
    <div class="sec"><h4>Sur ma montre</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · ${s.cy==="10k"?"allures":"cibles FC et allures"} et répétitions incluses</span></div>${s.gpx?`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px"><a class="btn" href="${s.gpx.href}" download>🗺 ${s.gpx.label}</a><span class="mut" style="font-size:13px">${km(s.gpx.km)} km · à ouvrir sur le téléphone (Plans, Komoot…) · © contributeurs OpenStreetMap</span></div>`:""}${FIT_HELP}</div></div>
@@ -215,12 +216,33 @@ function openS(id){
 function closeS(){$("#ov").classList.remove("on");document.body.style.overflow="";}
 
 /* ---------- PACES ---------- */
+const kmh=v=>v.toFixed(1).replace(".",",");
+const V10=36000/2552; // vitesse du 10 km HOKA (42'32), km/h
+function renderVMA(){
+  const vm=vmaMeasured(),v=vm||VMA_EST,l=state.logs.vma||{};
+  const rng=(lo,hi,d)=>{const a=vp(v,hi)*d/1000,b=vp(v,lo)*d/1000;return d===1000?fm(a)+" – "+fm(b):ft(a)+" – "+ft(b);};
+  const rows=[["Seuil",85,88,"le plan garde 4'27 – 4'32, tiré de ton 10 km"],["VMA longue · 800 à 1200 m",93,97,"4 × 1200 m, pyramide"],["VMA · 400 m",98,101,"400 m de la pyramide"],["VMA courte · 200 m, 30-30",101.5,105,"30-30, 200 m"]];
+  const p10=Math.round(V10/v*1000)/10;
+  const coh=!vm?"":p10>93.5?`<div class="note warn" style="margin-top:12px"><b>Résultat à confirmer.</b> Ton 10 km aurait été couru à ${String(p10).replace(".",",")} % de cette VMA, au-dessus des 88 – 92 % habituels : le test a probablement sous-estimé ta VMA (départ trop rapide, fatigue, vent). Refais-le reposé avant de t'y fier ; en attendant, les séances sont recalées sur cette valeur.</div>`
+    :p10<88?`<div class="note goal" style="--tc:#22c55e;margin-top:12px"><b>Ta vitesse est en avance sur ton endurance.</b> Ton 10 km n'utilise que ${String(p10).replace(".",",")} % de ta VMA (norme : 88 – 92 %). Ta marge de progression la plus rapide est au seuil et en sortie longue : c'est pour ça que les allures de seuil restent calées sur ton 10 km.</div>`
+    :`<div class="note goal" style="--tc:#22c55e;margin-top:12px"><b>Résultat cohérent.</b> Ton 10 km correspond à ${String(p10).replace(".",",")} % de ta VMA, dans la norme de 88 à 92 %. Les deux mesures se confirment.</div>`;
+  $("#vmaBox").innerHTML=`<h3>Test VMA : demi-Cooper ${vm?"":`<span class="cpTag" style="margin-left:6px">mar. 1er déc.</span>`}</h3>
+   <p class="mut" style="margin-top:0">6' à la vitesse la plus élevée possible sur piste, de façon régulière. <b style="color:var(--text)">VMA (km/h) = distance (m) ÷ 100</b>. Protocole complet dans la séance du 1er décembre.</p>
+   <div class="calcIn"><input id="vmaIn" inputmode="numeric" placeholder="1550" value="${l.d||""}" aria-label="Distance parcourue en 6 minutes, en mètres"><span class="mut" style="font-weight:600">m en 6'</span><button class="btn pri" id="vmaBtn">Calculer</button>${vm?`<button class="btn" id="vmaClr">Effacer</button>`:""}</div>
+   <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin-top:16px"><div><div class="res">${vm?"":"≈ "}${kmh(v)} km/h</div><div class="mut" style="font-size:13px">${vm?"VMA mesurée":"VMA estimée sur ton 42'32, à confirmer par le test"} · ${fm(vp(v,100))}/km · 400 m en ${ft(vp(v,100)*.4)}</div></div></div>
+   ${coh}
+   <div class="tscroll" style="margin-top:14px"><table class="ztab"><tr><th>Zone</th><th>% VMA</th><th>Allure /km</th><th>400 m</th><th>200 m</th><th>Dans le plan</th></tr>${rows.map(([n,lo,hi,u])=>`<tr><td><b>${n}</b></td><td class="num" data-l="% VMA">${String(lo).replace(".",",")} – ${hi} %</td><td class="num" data-l="Allure /km"><b>${rng(lo,hi,1000)}</b></td><td class="num" data-l="400 m">${rng(lo,hi,400)}</td><td class="num" data-l="200 m">${rng(lo,hi,200)}</td><td class="mut wide">${u}</td></tr>`).join("")}</table></div>
+   <p class="mut" style="font-size:12.5px;margin:10px 0 0">${vm?"Les fractionnés des 8, 15 et 22 décembre (4 × 1200 m, 30-30, pyramide) sont recalés sur cette VMA.":"Dès que tu entres ton résultat, les fractionnés des 8, 15 et 22 décembre (4 × 1200 m, 30-30, pyramide) se recalent dessus."} L'endurance fondamentale ne figure pas ici : elle reste pilotée à la FC (≤ 138 bpm), jamais à un pourcentage de VMA. Le seuil, l'allure 10 km et le test 5 km restent calés sur ton 42'32 : une allure tirée d'une vraie course est plus fiable qu'un pourcentage de VMA pour ces efforts longs.</p>`;
+  $("#vmaBtn").onclick=()=>{const d=Math.round(+String($("#vmaIn").value).replace(/\s/g,"").replace(",","."));if(!(d>=1100&&d<=2200)){toast("Distance attendue entre 1100 et 2200 m");return;}state.logs.vma={d:String(d),date:TODAY};save();applyVMA();renderPaces();refresh();toast("VMA : "+kmh(d/100)+" km/h · séances recalées");};
+  $("#vmaIn").onkeydown=e=>{if(e.key==="Enter")$("#vmaBtn").click();};
+  if(vm)$("#vmaClr").onclick=()=>{if(!confirm("Effacer le résultat du test VMA ? Les séances reviennent aux allures estimées."))return;delete state.logs.vma;save();applyVMA();renderPaces();refresh();};
+}
 function renderPaces(){
   const h=!IS10();
-  $("#pacesProse10k").style.display=h?"none":"";$("#pacesProseH").style.display=h?"":"none";$("#paces10k").style.display=h?"none":"";
+  $("#pacesProse10k").style.display=h?"none":"";$("#pacesProseH").style.display=h?"":"none";$("#paces10k").style.display=h?"none":"";$("#vmaBox").style.display=h?"":"none";if(h)renderVMA();
   if(h){
     $("#pacesProseH").innerHTML=`<h3>La logique des intensités</h3><p><b>Le facile se pilote à la FC, le dur à l'allure.</b> Récupération, endurance fondamentale et parties faciles des sorties longues : <b>plafond de 138 bpm</b>, quelle que soit l'allure. Fractionnés, fartlek et seuil : à l'allure, car sur des efforts de quelques minutes la FC réagit trop lentement pour guider l'effort.</p>
-    <p>Les allures de qualité sont recalculées sur ton 10 km du 15 novembre (<b>42'32, 4'15/km</b>) : seuil 4'27 – 4'32, allure 10 km 4'13 – 4'17, allure 5 km 4'02 – 4'07, VMA courte 3'45 – 3'55.</p>
+    <p>Les allures de qualité sont recalculées sur ton 10 km du 15 novembre (<b>42'32, 4'15/km</b>) : seuil 4'27 – 4'32, allure 10 km 4'13 – 4'17, allure 5 km 4'02 – 4'07, VMA courte ${Z.VM.r}${vmaMeasured()?" (recalée sur ton test VMA)":""}.</p>
     <p>Les allures indiquées pour l'EF et la récupération ne servent qu'à <b>estimer les distances</b>. Si tu cours plus lentement que prévu sous 138 bpm, c'est normal, et c'est exactement le but.</p>
     <div class="kpi" style="margin-top:12px"><div class="lab">Tes zones Garmin (bpm)</div></div><div class="gzones">${GARMIN_ZONES.map(g=>`<div><span>${g[0]}</span><b>${g[1].replace(/ – /,"–")}</b></div>`).join("")}</div>`;
     $("#zoneTable").innerHTML=`<tr><th>Zone</th><th>FC</th><th>Zone Garmin</th><th>Allure</th><th>RPE</th><th>Sensation</th><th>Usage</th></tr>`+CY.zones.map(z=>`<tr><td><span style="display:inline-flex;gap:8px;align-items:center;font-weight:700"><i class="dot" style="background:${Z[z].c}"></i>${Z[z].n}</span></td><td class="num" data-l="FC">${Z[z].hr?`<b>${Z[z].fc}</b>`:Z[z].fc}</td><td class="mut" data-l="Zone Garmin">${Z[z].gz}</td><td class="num" data-l="Allure">${Z[z].hr?`<span class="mut">${Z[z].r}</span>`:`<b>${Z[z].r}</b>`}</td><td class="num" data-l="RPE">${Z[z].rpe}</td><td class="wide">${Z[z].feel}</td><td class="mut wide">${Z[z].use}</td></tr>`).join("");
@@ -319,7 +341,7 @@ function renderGuide(){
 
 /* ---------- EVENTS ---------- */
 function show(tab){setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis")initAnalysis();},0);document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo({top:0,behavior:"smooth"});}
-function refresh(){renderDash();renderPlan();}
+function refresh(){applyVMA();renderDash();renderPlan();}
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
@@ -346,7 +368,7 @@ document.addEventListener("click",e=>{
   else if(el.hasAttribute("data-bkexp")){exportBackup();}
   else if(el.hasAttribute("data-bkimp")){$("#bkFile").click();}
   else if(el.hasAttribute("data-bkpaste")){const t=prompt("Colle ici le contenu de ta sauvegarde :");if(t)importBackup(t);}
-  else if(el.hasAttribute("data-gotest")){closeS();show("paces");setTimeout(()=>$("#t5").focus(),300);}
+  else if(el.hasAttribute("data-gotest")){const vm=el.dataset.gotest==="vma";closeS();if(vm&&IS10())setCycle("hiver");show("paces");setTimeout(()=>{const f=$(vm?"#vmaIn":"#t5");f.scrollIntoView({block:"center"});f.focus();},300);}
 });
 document.addEventListener("change",e=>{const c=e.target.closest("[data-check]");if(!c)return;const id=c.dataset.check;if(c.checked)state.done[id]=true;else delete state.done[id];save();refresh();toast(c.checked?"Séance validée 💪":"Séance décochée");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeS();bigClose();}});
@@ -376,6 +398,6 @@ function nbspTree(root){
   for(let n=w.nextNode();n;n=w.nextNode()){const v=nbspText(n.data);if(v!==n.data)n.data=v;}}
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(nbspTree))).observe(document.body,{childList:true,subtree:true});
 
-renderCycBar();renderDash();renderPlan();renderPaces();renderGuide();
+applyVMA();renderCycBar();renderDash();renderPlan();renderPaces();renderGuide();
 nbspTree(document.body);
 syncInit();

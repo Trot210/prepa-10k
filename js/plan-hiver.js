@@ -20,6 +20,14 @@ const TROT=o=>S("R",Object.assign({hr:null},o));           // trot entre fractio
 const LD=n=>rep(n,S("VM",{d:80,p:225}),S("W",{t:45}),true); // lignes droites de 80 m, retour en marchant
 const WU_STD=()=>({txt:["20' en EF, FC ≤ 138 bpm","5' de gammes : montées de genoux, talons-fesses, pas chassés","3 lignes droites de 80 m relâchées, retour en marchant"],segs:[EF(1200),S("W",{t:300}),...LD(3)]});
 const CD_TROT=m=>({txt:[m+"' de trot lent, sans cible de FC"],segs:[TROT({t:m*60})]});
+/* VMA : estimée sur le 42'32 (10 km ≈ 91–92 % de VMA), puis mesurée par le test demi-Cooper du 1er décembre.
+   Les séances de fractionné (vma:v=>…) sont écrites en % de VMA et se recalent sur la valeur mesurée. */
+const VMA_EST=15.4;                                    // km/h
+const vp=(v,pct)=>3600/(v*pct/100);                    // allure (s/km) à pct % de la VMA v
+const fm=s=>{s=Math.round(s);return Math.floor(s/60)+"'"+String(s%60).padStart(2,"0");};
+const ft=s=>{s=Math.round(s);return s<60?s+'"':fm(s);};
+const VS=(z,v,lo,hi,o)=>{const a=vp(v,lo),b=vp(v,hi);return S(z,Object.assign({p:Math.round((a+b)/2),pr:[Math.round(a),Math.round(b)]},o));};
+const VT=(d,v,lo,hi)=>{const m=(vp(v,lo)+vp(v,hi))/2;return d+" m en "+ft(m*d/1000)+" ("+fm(m)+"/km)";};
 const EF_TIP="Au-dessus de 138 bpm, ralentis, et marche quelques secondes si besoin. L'allure n'a aucune importance : c'est la FC qui fixe l'intensité.";
 
 const PLAN_H=[
@@ -82,17 +90,16 @@ const PLAN_H=[
   tired:"2 × 6' au lieu de 3, à la même allure. On réduit le volume, jamais l'allure."}
  ]},
 {n:3,mon:"2026-11-30",phase:"Développement · vitesse",short:"Semaine chargée",
- goal:"Première semaine chargée : VMA courte sur piste mardi, sortie longue progressive pilotée à la FC dimanche.",
+ goal:"Première semaine chargée : test VMA sur piste mardi, pour caler toutes les séances de fractionné de décembre, puis sortie longue progressive pilotée à la FC dimanche.",
  sessions:[
- {id:"h3a",date:"2026-12-01",type:"frac",title:"Accélérando 400-300-200",short:"Piste · 3 séries de plus en plus rapides",
-  goal:"VMA et économie de course : chaque série se termine plus vite qu'elle n'a commencé, ce qui entretient la vitesse et la capacité à relancer.",
-  why:"Les fractions raccourcissent à mesure que l'allure augmente : l'intensité monte sans que la fatigue explose. C'est un format plus ludique qu'une série de 400 m identiques, pour le même travail de VO₂max.",
-  wu:WU_STD(),
-  main:{txt:["3 séries de : 400 m en 1'34 (3'55/km) · 300 m en 69\" (3'50/km) · 200 m en 45\" (3'45/km)","Récupération : 200 m de trot entre les fractions, 3' de trot entre les séries"],
-   segs:[1,2,3].flatMap(i=>[S("VM",{d:400,p:235,pr:PR("3'57","3'53")}),TROT({d:200,p:390}),S("VM",{d:300,p:230,pr:PR("3'52","3'48")}),TROT({d:200,p:390}),S("VM",{d:200,p:225,pr:PR("3'47","3'43")}),...(i<3?[TROT({t:180})]:[])])},
-  cd:CD_TROT(10),
-  tips:["Couloir 1 et tours manuels sur la montre : le GPS est imprécis sur piste.","La 1re série doit sembler facile. Si tu dépasses les temps de plus de 2\", ralentis."],
-  tired:"2 séries au lieu de 3."},
+ {id:"h3a",date:"2026-12-01",type:"test",vmaTest:true,title:"Test VMA : demi-Cooper",short:"Piste · 6' au maximum, la distance donne ta VMA",
+  goal:"Mesurer ta vitesse maximale aérobie (VMA) : la vitesse à partir de laquelle ta consommation d'oxygène plafonne. C'est la référence de toutes les séances de fractionné.",
+  why:"Le demi-Cooper (6' à la vitesse la plus élevée possible, de façon régulière) se fait seul, sur une piste, avec ta montre. 6 minutes correspondent à la durée qu'un coureur entraîné tient à sa VMA : ta vitesse moyenne est donc ta VMA, et le calcul est direct (distance en mètres ÷ 100 = VMA en km/h). Un test à paliers comme le VAMEVAL est un peu plus rigoureux, mais il demande une bande sonore, des plots tous les 20 m et quelqu'un pour noter. Le Cooper de 12' sous-estime la VMA, et un calcul à partir du 10 km dépend de ton endurance : c'est justement ce que le test va séparer.",
+  wu:{txt:["20' en EF, FC ≤ 138 bpm","5' de gammes : montées de genoux, talons-fesses, pas chassés","3 accélérations progressives de 80 m, retour en marchant","3' de trot, puis place-toi sur la ligne"],segs:[EF(1200),S("W",{t:300}),...LD(3),TROT({t:180})]},
+  main:{txt:["6' à la vitesse la plus élevée que tu peux tenir régulièrement","Départ à 1'33 – 1'35 au 400 m (≈ 3'53/km), regarde le chrono à chaque tour","Dernière minute : accélère si tu as de la réserve","À 6'00, la montre vibre : arrête-toi et repère ta position au 10 m près. Distance = tours complets × 400 m + la fin du dernier tour"],segs:[S("VM",{t:360,p:234,pr:null})]},
+  cd:{txt:["3' de marche","12' de trot très lent, sans cible de FC"],segs:[S("W",{t:180}),TROT({t:720})]},
+  tips:["Piste de 400 m, couloir 1, et bouton tour à chaque passage de la ligne : le GPS est trop imprécis sur piste pour un test.","Avant de partir, repère les marques tous les 100 m à partir de ta ligne de départ : c'est ce qui rend la mesure précise.","La régularité fait le résultat : un départ trop rapide coûte plus de mètres en fin de test qu'il n'en fait gagner au début.","Conditions : pas de séance dure dans les 48 h, pas de repas copieux dans les 3 h, et pas de test par grand vent.","Note aussi la FC maximale affichée à la fin : elle permet de vérifier tes zones Garmin.","Entre la distance dans l'onglet Allures & test : ta VMA et tes allures sont calculées, et les fractionnés des 8, 15 et 22 décembre se recalent automatiquement."],
+  tired:"Jambes lourdes ou mal dormi : ne fais pas le test, il sous-estimerait ta VMA. Cours l'EF du jeudi aujourd'hui et déplace le test au jeudi 3 décembre."},
  {id:"h3b",date:"2026-12-03",type:"ef",title:"Endurance fondamentale",short:"40' sous 138 bpm + 6 lignes droites",
   goal:"Récupération active et volume aérobie.",
   why:"Entre deux séances de la semaine la plus dense jusqu'ici, l'EF consolide sans fatiguer.",
@@ -117,8 +124,8 @@ const PLAN_H=[
   goal:"Puissance aérobie et capacité à changer de rythme alors que la fatigue est déjà là, comme dans une fin de 10 km.",
   why:"Accélérer sur les 400 derniers mètres de chaque répétition apprend à relancer en état de fatigue. C'est ce qui t'a permis de finir en 4'11 au km 10 le 15 novembre : on l'entretient.",
   wu:WU_STD(),
-  main:{txt:["4 × 1200 m : 800 m en 3'18 (4'08/km), puis sans pause 400 m en 1'35 (3'58/km)","Récupération : 2'30 de trot"],
-   segs:[1,2,3,4].flatMap(i=>[S("A5",{d:800,p:248,pr:PR("4'10","4'06")}),S("VM",{d:400,p:238,pr:PR("4'00","3'56")}),...(i<4?[TROT({t:150})]:[])])},
+  vma:v=>({txt:[`4 × 1200 m : ${VT(800,v,93.5,95)}, puis sans pause ${VT(400,v,97.5,99)}`,"Récupération : 2'30 de trot"],
+   segs:[1,2,3,4].flatMap(i=>[VS("A5",v,93.5,95,{d:800}),VS("VM",v,97.5,99,{d:400}),...(i<4?[TROT({t:150})]:[])])}),
   cd:CD_TROT(10),
   tips:["Contrôle au tour : 1'39 sur les deux premiers tours, 1'35 sur le dernier.","Le changement d'allure doit être net, mais sans sprint."],
   tired:"3 répétitions au lieu de 4."},
@@ -147,8 +154,8 @@ const PLAN_H=[
   goal:"Garder la vitesse sans ajouter de fatigue.",
   why:"Le 30-30 sollicite la VO₂max avec très peu de fatigue musculaire : idéal pour une semaine allégée, qui réduit le volume mais pas l'intensité.",
   wu:WU_STD(),
-  main:{txt:["2 séries de 6 × (30\" vite à 3'45 – 3'50/km, soit ≈ 130 m, puis 30\" de trot)","3' de trot entre les séries"],
-   segs:[...rep(6,S("VM",{t:30,p:228,pr:PR("3'50","3'45")}),TROT({t:30})),TROT({t:180}),...rep(6,S("VM",{t:30,p:228,pr:PR("3'50","3'45")}),TROT({t:30}))]},
+  vma:v=>({txt:[`2 séries de 6 × (30" vite à ${fm(vp(v,104))} – ${fm(vp(v,101.6))}/km, soit ≈ ${Math.round(v*1.03/3.6*30/5)*5} m, puis 30" de trot)`,"3' de trot entre les séries"],
+   segs:[...rep(6,VS("VM",v,101.6,104,{t:30}),TROT({t:30})),TROT({t:180}),...rep(6,VS("VM",v,101.6,104,{t:30}),TROT({t:30}))]}),
   cd:CD_TROT(10),
   tips:["Sur 30\", l'allure de la montre réagit avec retard : fie-toi à la sensation (vite et relâché), la distance d'environ 130 m sert de repère.","Peut se faire sur route plate ou en parc."],
   tired:"Une seule série de 6."},
@@ -177,8 +184,8 @@ const PLAN_H=[
   goal:"VMA et seuil haut. La descente se court 2 à 3 s/km plus vite que la montée, pour apprendre à finir fort.",
   why:"La montée habitue à tenir des fractions de plus en plus longues, la descente plus rapide travaille la capacité à accélérer en fatigue. 4,8 km de travail au total, la dose d'une semaine chargée.",
   wu:WU_STD(),
-  main:{txt:["Montée : 400 m en 1'34 (3'55/km) · 800 m en 3'14 (4'03/km) · 1200 m en 4'58 (4'08/km)","Descente : 1200 m en 4'55 (4'06/km) · 800 m en 3'12 (4'00/km) · 400 m en 1'33 (3'52/km)","Récupération en trot : 1' · 1'30 · 2' · 2' · 1'30"],
-   segs:[S("VM",{d:400,p:235,pr:PR("3'57","3'53")}),TROT({t:60}),S("A5",{d:800,p:243,pr:PR("4'05","4'01")}),TROT({t:90}),S("A5",{d:1200,p:248,pr:PR("4'10","4'06")}),TROT({t:120}),S("A5",{d:1200,p:246,pr:PR("4'08","4'04")}),TROT({t:120}),S("A5",{d:800,p:240,pr:PR("4'02","3'58")}),TROT({t:90}),S("VM",{d:400,p:232,pr:PR("3'54","3'50")})]},
+  vma:v=>({txt:[`Montée : ${VT(400,v,98.5,100.5)} · ${VT(800,v,95.5,97)} · ${VT(1200,v,93.5,95)}`,`Descente : ${VT(1200,v,94.3,95.7)} · ${VT(800,v,96.7,98.3)} · ${VT(400,v,100,101.7)}`,"Récupération en trot : 1' · 1'30 · 2' · 2' · 1'30"],
+   segs:[VS("VM",v,98.5,100.5,{d:400}),TROT({t:60}),VS("A5",v,95.5,97,{d:800}),TROT({t:90}),VS("A5",v,93.5,95,{d:1200}),TROT({t:120}),VS("A5",v,94.3,95.7,{d:1200}),TROT({t:120}),VS("A5",v,96.7,98.3,{d:800}),TROT({t:90}),VS("VM",v,100,101.7,{d:400})]}),
   cd:CD_TROT(10),
   tips:["Le 1200 m de la montée est le piège : 1'39 – 1'40 au tour, pas plus vite.","Si la descente devient impossible à tenir, cours-la à l'allure de la montée."],
   tired:"Supprime le 1200 m de la descente."},
@@ -227,6 +234,16 @@ const CYCLES=[
   {id:"hiver",name:"Hiver 2026",full:"Entretien & progression",from:"2026-11-16",to:"2026-12-31",showFrom:"2026-11-15",lastMove:"2026-12-31",plan:PLAN_H,zones:["R","E","AA","SE","AK","A5","VM"]},
   {id:"10k",name:"Prépa 10 km",full:"10 km HOKA Paris Centre",from:"2026-10-19",to:"2026-11-15",lastMove:"2026-11-14",plan:PLAN,zones:["Z1","Z2","Z3","Z4","Z5","Z6"]}
 ];
+PLAN_H.forEach(w=>w.sessions.forEach(s=>{if(s.vma)s.main=s.vma(VMA_EST);}));
 CYCLES.forEach(c=>{c.all=finalize(c.plan,c.id);c.main=c.all.filter(s=>!s.opt);});
+
+/* VMA mesurée (distance du demi-Cooper, en m, dans state.logs.vma.d) → recalage des fractionnés */
+function vmaMeasured(){const l=typeof state!=="undefined"&&state.logs&&state.logs.vma,d=l&&+l.d;return d>=1100&&d<=2200?d/100:null;}
+let VMA_CUR=VMA_EST;
+function applyVMA(){
+  const v=vmaMeasured()||VMA_EST;if(v===VMA_CUR)return;VMA_CUR=v;
+  CYCLES[0].all.forEach(s=>{if(s.vma){s.main=s.vma(v);calcSess(s);}});
+  Z.VM.r=v===VMA_EST?"3'45 – 3'55":fm(vp(v,105))+" – "+fm(vp(v,100));
+}
 const ALL=CYCLES.flatMap(c=>c.all);
 const cycleOf=s=>CYCLES.find(c=>c.id===s.cy);
