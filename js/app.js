@@ -384,7 +384,23 @@ $("#resetBtn").onclick=()=>{if(confirm(syncCode()?"Effacer toutes les séances c
 
 $("#fitHelpPlan").innerHTML=FIT_HELP;
 $("#bkFile").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;f.text().then(importBackup);e.target.value="";});
-if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+/* Mise à jour automatique : l'app vérifie s'il existe une nouvelle version à chaque retour au premier plan
+   (iPhone : l'app de l'écran d'accueil reste souvent en mémoire sans se recharger), puis se recharge d'elle-même
+   dès que la nouvelle version a pris la main, sauf si une fiche ou un champ est en cours d'utilisation. */
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+  const hadCtrl=!!navigator.serviceWorker.controller;let reloading=false;
+  navigator.serviceWorker.register("sw.js").then(reg=>{
+    const check=()=>reg.update().catch(()=>{});
+    document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")check();});
+    setInterval(check,30*60*1000);
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!hadCtrl||reloading)return;reloading=true;
+    const busy=()=>$("#ov").classList.contains("on")||$("#bigOv").classList.contains("on")||/^(INPUT|TEXTAREA)$/.test((document.activeElement||{}).tagName||"");
+    const go=()=>{if(busy()){setTimeout(go,2000);return;}location.reload();};
+    go();
+  });
+}
 /* typographie : ne jamais couper « 138 bpm », « ≤ 138 », « 4'27 – 4'32 » ou « 3 × 6' » en fin de ligne */
 const NB=" ";
 function nbspText(t){return t
