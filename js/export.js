@@ -132,7 +132,7 @@ function icsAll(){
     const body=[`${T[s.type].n} · ${dur(s.t)} · ${km(s.d)} km`,"",s.goal,"","Échauffement : "+lines(s,s.wu).join(" ; "),"Corps de séance : "+lines(s,s.main).join(" ; "),"Retour au calme : "+lines(s,s.cd).join(" ; ")].join("\n");
     L.push("BEGIN:VEVENT",`UID:${s.id}@prepa10k.local`,`DTSTAMP:${stamp}`,`SEQUENCE:${seq}`,
       race?`DTSTART:${d}T093000`:`DTSTART:${d}T110000`,race?`DTEND:${d}T104500`:`DTEND:${d}T130000`,
-      icsFold("SUMMARY:"+icsEsc("🏃 "+s.title+(s.opt?" (optionnel)":""))),icsFold("DESCRIPTION:"+icsEsc(body)));
+      icsFold("SUMMARY:"+icsEsc("🏃 "+s.title+(s.opt?" (optionnel)":""))),icsFold("DESCRIPTION:"+icsEsc("Ouvrir la séance : "+location.origin+location.pathname+"#seance/"+s.id+"\n\n"+body)),icsFold("URL:"+location.origin+location.pathname+"#seance/"+s.id));
     if(race)L.push(...alarm("-PT13H30M","Demain : 10 km HOKA Paris Centre. Dossard, chaussures testées, repas connu."),...alarm("-PT3H","Petit-déjeuner maintenant : départ à 9h30."));
     else L.push(...alarm("-PT15H","Demain : "+s.title+" ("+dur(s.t)+", créneau 11h–13h)"),...alarm("-PT1H","Séance dans 1 h : "+s.title));
     L.push("END:VEVENT");

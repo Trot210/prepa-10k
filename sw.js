@@ -1,4 +1,4 @@
-const CACHE="prepa10k-v12";
+const CACHE="prepa10k-v13";
 const SHELL=["./","index.html","styles.css","js/plan.js","js/plan-hiver.js","js/export.js","js/analysis-core.js","js/analysis-ui.js","js/sync.js","js/config.js","js/app.js","manifest.webmanifest","icons/icon-192.png","icons/icon-512.png","icons/apple-touch-icon.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()));});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

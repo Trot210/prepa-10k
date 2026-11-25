@@ -33,9 +33,13 @@ let CY=(()=>{try{const id=sessionStorage.getItem(CYC_KEY);return CYCLES.find(c=>
 const PL=()=>CY.plan;
 const IS10=()=>CY.id==="10k";
 function renderCycBar(){
-  document.querySelectorAll("[data-cycbar]").forEach(el=>{el.innerHTML=`<span class="lab">Programme</span><div class="seg">${CYCLES.map(c=>`<button class="btn ${c.id===CY.id?"on":""}" data-cycle="${c.id}">${c.name}</button>`).join("")}</div>`;});
+  const def=defaultCycle();
+  document.querySelectorAll("[data-cycbar]").forEach(el=>{
+    if(el.dataset.cycbar==="main")el.innerHTML=`<span class="lab">Cycle</span><div class="seg">${CYCLES.map(c=>`<button class="btn ${c.id===CY.id?"on":""}" data-cycle="${c.id}">${c.name}${c===def?"":" · archive"}</button>`).join("")}</div>`;
+    else el.innerHTML=CY===def?"":`<div class="note archive"><span>Tu consultes l'archive <b>${CY.name}</b>.</span><button class="btn" data-cycle="${def.id}">Revenir à ${def.name}</button></div>`;
+  });
   const rt=document.querySelector('[data-tab="race"]');if(rt)rt.style.display=IS10()?"":"none";
-  $("#brandTxt").innerHTML=IS10()?`Objectif 43:00<small>10 km HOKA Paris Centre</small>`:`Hiver 2026<small>Entretien & progression · réf. 42'32</small>`;
+  $("#brandTxt").innerHTML=IS10()?`Objectif 43:00<small>10 km HOKA Paris Centre · archive</small>`:`Hiver 2026<small>Entretien & progression · réf. 42'32</small>`;
 }
 function setCycle(id){
   const c=CYCLES.find(x=>x.id===id);if(!c||c===CY)return;
@@ -73,6 +77,35 @@ function unmoveSession(id){if(state.moves)delete state.moves[id];save();refresh(
 /* chrono du test 5 km du 31 décembre, saisi dans le champ « durée » de la séance */
 function testH(){const l=state.logs.h7b,t=l&&parseT(l.dur);return t&&t>=900&&t<=1800?t:null;}
 function testVerdict(t){return t<=1215?["Progression","#22c55e"]:t<=1245?["Niveau maintenu","#a855f7"]:["Légère baisse, rattrapable","#f59e0b"];}
+/* ---------- BILAN DE SEMAINE ---------- */
+function weekStats(w){
+  const ms=w.sessions.filter(s=>!s.opt),done=ms.filter(s=>state.done[s.id]);
+  const efL=done.filter(s=>efCap(s)&&+((state.logs[s.id]||{}).fc)>0),rp=done.map(s=>+((state.logs[s.id]||{}).rpe)).filter(x=>x>0);
+  return{ms,done,kmPlan:ms.reduce((a,s)=>a+s.d,0),kmDone:done.reduce((a,s)=>a+doneKm(s),0),efLogged:efL.length,efOk:efL.filter(s=>+state.logs[s.id].fc<=efCap(s)).length,
+    rpe:rp.length?(rp.reduce((a,b)=>a+b,0)/rp.length).toFixed(1).replace(".",","):"",missed:ms.filter(s=>!state.done[s.id]&&sdate(s)<TODAY)};
+}
+function bilanCard(w){
+  const b=weekStats(w),all=b.done.length===b.ms.length,efBad=b.efLogged&&b.efOk<b.efLogged;
+  const verdict=all&&!efBad?["Semaine réussie 👍","Toutes les séances faites"+(b.efLogged?", et l'EF est restée sous 138 bpm.":"."),"#4ade80"]
+    :!b.done.length?["Semaine blanche","Pas de rattrapage : reprends le plan normalement, sans doubler les séances.","#f59e0b"]
+    :efBad?["Attention à l'EF",`${b.efLogged-b.efOk} sortie${b.efLogged-b.efOk>1?"s":""} facile${b.efLogged-b.efOk>1?"s":""} au-dessus de 138 bpm : ralentis, quitte à marcher en côte.`,"#f59e0b"]
+    :["Semaine correcte",`${b.ms.length-b.done.length} séance${b.ms.length-b.done.length>1?"s":""} non faite${b.ms.length-b.done.length>1?"s":""} : pas de rattrapage, la suite du plan en tient compte.`,"#a855f7"];
+  const mini=(l,v,s)=>`<div class="mini"><div class="lab">${l}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:""}</div>`;
+  return`<div class="card bilan"><div class="eyebrow" style="color:${verdict[2]}">Bilan de la semaine ${w.n} · ${w.phase}</div><div class="bTitle">${verdict[0]}</div><div class="mut">${verdict[1]}</div>
+   <div class="minis" style="margin-top:12px">${mini("Séances",b.done.length+" / "+b.ms.length)}${mini("Volume",km(b.kmDone)+" km","prévu "+km(b.kmPlan))}${mini("EF ≤ 138",b.efLogged?b.efOk+" / "+b.efLogged:"—",b.efLogged?"":"FC non notée")}${mini("Ressenti moyen",b.rpe?b.rpe+" / 10":"—")}</div></div>`;
+}
+/* ---------- PROGRESSION ---------- */
+function progressionCard(){
+  const vm=vmaMeasured(),t5=testH(),base10=t5?t5*2.085:2552,riegel=(t,d1,d2)=>t*Math.pow(d2/d1,1.06);
+  const row=(d,l,v,s,c)=>`<div class="pRow"><div class="pDate">${d}</div><div style="flex:1;min-width:0"><div class="pLab">${l}</div>${s?`<div class="mut" style="font-size:12.5px">${s}</div>`:""}</div><div class="pVal"${c?` style="color:${c}"`:""}>${v}</div></div>`;
+  return`<div class="card progression"><div class="wlHead" style="padding-top:0">Progression</div>
+   ${row("avant","10 km Adidas","46'26","4'39/km")}
+   ${row("avant","Semi-marathon","1h40'37","4'46/km")}
+   ${row("15 nov.","10 km HOKA","42'32","record · −3'54 · 4'15/km","#4ade80")}
+   ${row("1er déc.","Test VMA (demi-Cooper)",vm?kmh(vm)+" km/h":"à venir",vm?state.logs.vma.d+" m en 6'":"")}
+   ${row("31 déc.","Test 5 km",t5?clock(t5):"à venir",t5?testVerdict(t5)[0]:"objectif ≤ 20'15",t5?testVerdict(t5)[1]:"")}
+   <div class="pPred">Estimations ${t5?"d'après ton test 5 km":"d'après ton 42'32"} (formule de Riegel) : 5 km ≈ <b>${clock(t5||base10/2.085)}</b> · 10 km ≈ <b>${clock(base10)}</b> · semi ≈ <b>${clock(riegel(base10,10,21.0975))}</b></div></div>`;
+}
 /* ---------- AUJOURD'HUI ---------- */
 const isTouch=()=>matchMedia("(pointer:coarse)").matches;
 const addDays=(ds,n)=>{const d=D(ds);d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
@@ -104,9 +137,11 @@ function renderToday(){
   else h+=`<div class="card"><b>${MAIN.every(s=>state.done[s.id])?"Toutes les séances sont validées. Bravo !":"Plus aucune séance à venir dans ce cycle."}</b></div>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]),wkKm=ms.reduce((a,s)=>a+s.d,0),dKm=dn.reduce((a,s)=>a+doneKm(s),0);
   const ef=efStats(),vm=vmaMeasured();
+  if(cw>1&&TODAY<=addDays(w.mon,2))h+=bilanCard(P[cw-2]);
   h+=`<div class="minis">${mini("Semaine "+cw+" / "+P.length,dn.length+" / "+ms.length+" faites",w.phase)}${mini("Volume semaine",km(dKm)+" / "+km(wkKm)+" km","réalisé / prévu")}${mini("EF ≤ 138 bpm",ef.logged?ef.ok+" / "+ef.logged:"—",ef.logged?(ef.ok===ef.logged?"toutes respectées":"au-dessus du plafond : ralentis"):"note ta FC moyenne",ef.logged?(ef.ok===ef.logged?"#4ade80":"#f59e0b"):"")}${mini("VMA",(vm?"":"≈ ")+kmh(vm||VMA_EST)+" km/h",vm?"mesurée au test":"estimée · test le 1er déc.")}</div>`;
   const icon=s=>state.done[s.id]?["✓","#a3e635","Faite"]:sdate(s)<TODAY?["!","#f59e0b","À valider"]:s===nx?["→","#4ade80",isTouch()?"Prochaine":"Prochaine séance"]:["","#2a3646",""];
   h+=`<div class="card weekList"><div class="wlHead">Cette semaine</div>${w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(s=>{const [ic,c,lab]=icon(s);return`<div class="wlRow" data-open="${s.id}"><span class="wlIc" style="background:${c}">${ic}</span><div style="flex:1;min-width:0"><div class="wlT">${s.title}</div><div class="mut" style="font-size:12.5px">${relDay(sdate(s))} · ${dur(s.t)}${lab?` · ${lab}`:""}</div></div><span class="mut">›</span></div>`;}).join("")}</div>`;
+  h+=progressionCard();
   $("#today").innerHTML=h;
 }
 function renderDash(){
@@ -197,6 +232,7 @@ function renderReal(){
 }
 
 /* ---------- PLAN VIEW ---------- */
+const SHORT={recup:"Récup",ef:"EF",long:"SL",frac:"Frac",fart:"Fartlek",seuil:"Seuil",spec:"Spé",test:"Test",race:"Course"};
 function curWeek(){let n=1;PL().forEach(w=>{if(w.mon<=TODAY)n=w.n;});return n;}
 let week=curWeek();
 function renderPlan(){
@@ -204,11 +240,12 @@ function renderPlan(){
   $("#weekNav").innerHTML=`<button class="wbtn arrow" data-wnav="-1" ${week===1?"disabled":""}>←</button>`+P.map(x=>`<button class="wbtn ${x.n===week?"on":""}" data-week="${x.n}">S${x.n}</button>`).join("")+`<button class="wbtn arrow" data-wnav="1" ${week===P.length?"disabled":""}>→</button><span class="mut" style="margin-left:6px;font-weight:600;font-size:14px">${fdate(w.mon,{day:"numeric",month:"long"})} – ${fdate((()=>{const d=D(w.mon);d.setDate(d.getDate()+6);const e=d.toISOString().slice(0,10);return e>CY.to?CY.to:e;})(),{day:"numeric",month:"long"})}</span>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]).length,wkKm=ms.reduce((a,s)=>a+s.d,0),wkT=ms.reduce((a,s)=>a+s.t,0);
   const maxKm=Math.max(...P.map(x=>x.sessions.filter(s=>!s.opt).reduce((a,s)=>a+s.d,0)));
+  const ws=weekStats(w),past=w.mon<=TODAY;
   $("#weekHead").innerHTML=`<div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap"><div style="flex:1;min-width:240px"><div class="eyebrow">Semaine ${w.n} · ${w.short}</div><h2 style="margin:4px 0 6px">${w.phase}</h2><div class="mut">${w.goal}</div></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div class="stat"><div class="l">Distance</div><div class="v">${km(wkKm)} km</div></div><div class="stat"><div class="l">Durée</div><div class="v">${dur(wkT)}</div></div><div class="stat"><div class="l">Faites</div><div class="v">${dn} / ${ms.length}</div></div><div class="stat" style="min-width:120px"><div class="l">Charge relative</div><div class="bar" style="margin-top:8px"><i style="width:${wkKm/maxKm*100}%"></i></div></div></div></div>`;
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div class="stat"><div class="l">Distance</div><div class="v">${km(wkKm)} km</div></div><div class="stat"><div class="l">Durée</div><div class="v">${dur(wkT)}</div></div><div class="stat"><div class="l">Faites</div><div class="v">${dn} / ${ms.length}</div></div><div class="stat" style="min-width:120px"><div class="l">Charge relative</div><div class="bar" style="margin-top:8px"><i style="width:${wkKm/maxKm*100}%"></i></div></div></div></div>${past&&ws.done.length?`<div class="wkBilan">Réalisé : <b>${km(ws.kmDone)} km</b> sur ${km(ws.kmPlan)}${ws.efLogged?` · EF sous ${CY.id==="hiver"?"138":"le plafond"} : <b>${ws.efOk} / ${ws.efLogged}</b>`:""}${ws.rpe?` · ressenti moyen <b>${ws.rpe}</b> / 10`:""}${ws.missed.length?` · <span style="color:#f59e0b">${ws.missed.length} à valider</span>`:""}</div>`:""}`;
   // strip
   let strip="";for(let i=0;i<7;i++){const d=new Date(D(w.mon));d.setDate(d.getDate()+i);const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");const s=w.sessions.find(x=>sdate(x)===ds);
-    strip+=`<div class="day ${s?"has":""} ${ds===TODAY?"today":""} ${s&&state.done[s.id]?"done":""}" ${s?`data-open="${s.id}"`:""} style="${s?`border-color:${T[s.type].c}66;background:${T[s.type].c}10`:""}"><div class="dn">${d.toLocaleDateString("fr-FR",{weekday:"short"}).replace(".","")}</div><div class="dd">${d.getDate()}</div>${s?`<i class="dot" style="background:${T[s.type].c}"></i><div class="dt">${s.opt?"Option":T[s.type].n.split(" ")[0]}</div>`:`<div class="dt">Repos</div>`}</div>`;}
+    strip+=`<div class="day ${s?"has":""} ${ds===TODAY?"today":""} ${s&&state.done[s.id]?"done":""} ${s&&!state.done[s.id]&&ds<TODAY?"miss":""}" ${s?`data-open="${s.id}"`:""} style="${s?`border-color:${T[s.type].c}66;background:${T[s.type].c}10`:""}"><div class="dn">${d.toLocaleDateString("fr-FR",{weekday:"short"}).replace(".","")}</div><div class="dd">${d.getDate()}</div>${s?`<span class="tl" style="background:${T[s.type].c}">${SHORT[s.type]||T[s.type].n.split(" ")[0]}</span>${s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}${!state.done[s.id]&&ds<TODAY?`<span class="missMini">à valider</span>`:`<div class="dt">${dur(s.t)}</div>`}`:`<div class="dt">Repos</div>`}</div>`;}
   $("#strip").innerHTML=strip;
   $("#sessGrid").innerHTML=w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(card).join("");
   $("#legendTypes").innerHTML=Object.values(T).map(t=>`<span><i class="dot" style="background:${t.c}"></i>${t.n}</span>`).join("")+`<span style="margin-left:auto"><span class="cpTag">CP</span>&nbsp;point de contrôle</span>`;
@@ -222,7 +259,7 @@ function card(s){const dn=!!state.done[s.id];return`<div class="card sess ${dn?"
 
 /* ---------- MODAL ---------- */
 function phaseBlock(name,b,col,s){const t=b.segs.reduce((a,x)=>a+st(x).t,0),d=b.segs.reduce((a,x)=>a+st(x).d,0)/1000;return`<div class="step" style="--sc:${col}"><div class="sn">${name}<span>${dur(t)} · ${km(d)} km</span></div><ul>${lines(s,b).map(x=>`<li>${x}</li>`).join("")}</ul></div>`;}
-function openS(id){
+function openS(id,o){
   const s=ALL.find(x=>x.id===id);if(!s)return;const t=T[s.type],l=state.logs[id]||{},dn=!!state.done[id],rp=racePace();
   const mainCol=Z[s.main.segs.reduce((a,x)=>Z[x.z].lvl>Z[a.z].lvl?x:a).z].c;
   const zs=[...new Set(s.segs.map(x=>x.z))].filter(z=>z!=="W");
@@ -236,23 +273,24 @@ function openS(id){
    <div class="note goal"><b>Objectif physiologique</b><br>${s.goal}</div>
    <div class="sec"><h4>Déroulé</h4><div class="steps">${phaseBlock("Échauffement",s.wu,"#22c55e",s)}${phaseBlock("Corps de séance",s.main,mainCol,s)}${phaseBlock("Retour au calme",s.cd,"#94a3b8",s)}</div></div>
    ${s.race&&rp.src==="test"?`<div class="note cp">Ton test 5 km fixe l'allure de course à <b>${pace(rp.p)}/km</b>  : les consignes de cette séance sont déjà mises à jour.</div>`:""}
-   <div class="sec"><h4>Pourquoi cette séance</h4><div>${s.why}</div></div>
    <div class="sec"><h4>Consignes</h4><ul style="margin:0;padding-left:18px">${s.tips.map(x=>`<li style="margin:4px 0">${x}</li>`).join("")}</ul></div>
    ${s.cpTxt?`<div class="sec"><div class="note cp"><b>Point de contrôle ${s.cp}</b><br>${s.cpTxt}${s.cp===3?`<div style="margin-top:10px"><button class="btn pri" data-gotest>Ouvrir le calculateur</button></div>`:""}</div></div>`:""}
    ${s.vmaTest?`<div class="sec"><div class="note cp"><b>Après le test</b><br>${vmaMeasured()?`Résultat enregistré : <b>${state.logs.vma.d} m</b>, soit une VMA de <b>${kmh(vmaMeasured())} km/h</b>. Les fractionnés des 8, 15 et 22 décembre sont recalés dessus.`:`Entre la distance parcourue en 6' : ta VMA et tes allures sont calculées, et les fractionnés des 8, 15 et 22 décembre se recalent automatiquement.`}<div style="margin-top:10px"><button class="btn pri" data-gotest="vma">${vmaMeasured()?"Voir mes allures VMA":"Entrer mon résultat"}</button></div></div></div>`:""}
-   <div class="sec"><div class="note warn"><b>Fatigue ou séance raccourcie</b><br>${s.tired}</div></div>
-   ${(s.id==="w4c"||dn||cycleOf(s).lastMove<TODAY)?"":`<div class="sec"><h4>Déplacer la séance</h4><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="date" id="mvDate" value="${sdate(s)<TODAY?TODAY:sdate(s)}" min="${TODAY}" max="${cycleOf(s).lastMove}" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:inherit"><button class="btn pri" data-move="${id}">Déplacer</button>${state.moves&&state.moves[id]?`<button class="btn" data-unmove="${id}">Date prévue (${fdate(s.date,{day:"numeric",month:"short"})})</button>`:""}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Le calendrier (.ics) et les fichiers de la montre suivent la nouvelle date. Évite deux séances intenses de suite.</div></div></div>`}
-   <div class="sec"><h4>Sur ma montre</h4><div class="note">${isTouch()?`<div><b>À préparer depuis le Mac.</b> La Forerunner 55 se charge par câble : sur le Mac, ouvre cette séance, télécharge le fichier (ou le zip de la semaine dans Programme), puis copie-le dans <b>GARMIN/NewFiles</b>.</div>`:`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · ${s.cy==="10k"?"allures":"cibles FC et allures"} et répétitions incluses</span></div>`}${s.gpx?`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px"><a class="btn" href="${s.gpx.href}" download>🗺 ${s.gpx.label}</a><span class="mut" style="font-size:13px">${km(s.gpx.km)} km · à ouvrir sur le téléphone (Plans, Komoot…) · © contributeurs OpenStreetMap</span></div>`:""}${FIT_HELP}</div></div>
-   <div class="sec"><h4>Mon ressenti</h4><div class="form">
-    <div class="fld"><label>Distance réelle (km)</label><input id="lDist" inputmode="decimal" value="${l.dist||""}" placeholder="${km(s.d)}"></div>
-    <div class="fld"><label>Durée (h:mm:ss)</label><input id="lDur" value="${l.dur||""}" placeholder="${clock(s.t).replace("h",":").replace("'",":")}"></div>
-    <div class="fld"><label>FC moyenne${efCap(s)?` (plafond ${efCap(s)})`:""}</label><input id="lFc" inputmode="numeric" value="${l.fc||""}" placeholder="bpm"></div>
-    <div class="fld full"><label>Effort ressenti (RPE) : <b id="rpeV">${l.rpe||"–"}</b> / 10</label><input type="range" id="lRpe" min="1" max="10" value="${l.rpe||5}"></div>
-    <div class="fld full"><label>Notes (allures des blocs, sensations, météo…)</label><textarea id="lNote" rows="3">${l.note||""}</textarea></div></div>
-    <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn ok" data-savelog="${id}">${dn?"Mettre à jour":"✓ Enregistrer et valider"}</button>${dn?`<button class="btn" data-toggle="${id}">Marquer comme non faite</button>`:""}</div></div>
-  </div>`;
+   ${logSummary(s)}
+   <details class="sec fold"><summary>Pourquoi cette séance</summary><div>${s.why}</div></details>
+   <details class="sec fold"><summary>Fatigue ou séance raccourcie</summary><div class="note warn">${s.tired}</div></details>
+   ${(s.id==="w4c"||dn||cycleOf(s).lastMove<TODAY)?"":`<details class="sec fold"><summary>Déplacer la séance</summary><div class="note"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="date" id="mvDate" value="${sdate(s)<TODAY?TODAY:sdate(s)}" min="${TODAY}" max="${cycleOf(s).lastMove}" style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:inherit"><button class="btn pri" data-move="${id}">Déplacer</button>${state.moves&&state.moves[id]?`<button class="btn" data-unmove="${id}">Date prévue (${fdate(s.date,{day:"numeric",month:"short"})})</button>`:""}</div><div class="mut" style="font-size:12.5px;margin-top:8px">Le calendrier (.ics) et les fichiers de la montre suivent la nouvelle date. Évite deux séances intenses de suite.</div></div></details>`}
+   <details class="sec fold"${isTouch()&&!s.gpx?"":" open"}><summary>${s.gpx?"Sur ma montre · tracé GPX":"Sur ma montre"}</summary><div class="note">${isTouch()?`<div><b>À préparer depuis le Mac.</b> La Forerunner 55 se charge par câble : sur le Mac, ouvre cette séance, télécharge le fichier (ou le zip de la semaine dans Programme), puis copie-le dans <b>GARMIN/NewFiles</b>.</div>`:`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="btn pri" data-fit="${id}">⌚ Télécharger la séance (.fit)</button><span class="mut" style="font-size:13px">Forerunner 55 · ${s.cy==="10k"?"allures":"cibles FC et allures"} et répétitions incluses</span></div>`}${s.gpx?`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px"><a class="btn" href="${s.gpx.href}" download>🗺 ${s.gpx.label}</a><span class="mut" style="font-size:13px">${km(s.gpx.km)} km · à ouvrir sur le téléphone (Plans, Komoot…) · © contributeurs OpenStreetMap</span></div>`:""}${FIT_HELP}</div></details>
+  </div>
+  <div class="pact">${isTouch()?"":`<button class="btn" data-fit="${id}">⌚ Montre (.fit)</button>`}<button class="btn ${dn?"doneTag":"ok"}" data-finish="${id}">${dn?"✓ Réalisée · modifier":"✓ Terminer la séance"}</button></div>`;
   $("#ov").classList.add("on");document.body.style.overflow="hidden";
-  const r=$("#lRpe");r.oninput=()=>{$("#rpeV").textContent=r.value;r.dataset.touched=1;};
+  if(!(o&&o.noPush)&&location.hash!=="#seance/"+id){navPush("#seance/"+id);sheetPushed=true;}
+}
+/* résumé de ce qui a été noté pour une séance */
+function logSummary(s){
+  const l=state.logs[s.id]||{},dn=!!state.done[s.id];if(!dn&&!l.dur&&!l.fc&&!l.rpe)return"";
+  const cap=efCap(s),fc=+l.fc,it=(k,v)=>v?`<div class="stat"><div class="l">${k}</div><div class="v">${v}</div></div>`:"";
+  return`<div class="sec"><h4>${dn?"Réalisée":"Notée"}</h4><div class="stats" style="margin-top:0">${it("Durée",l.dur?clock(parseT(l.dur)).replace("'"," min ").replace(/ min 00$/," min"):"")}${it("Distance",l.dist?km(+l.dist)+" km":"")}${it("FC moy.",fc?fc+(cap?(fc<=cap?' <span style="color:#4ade80">✓</span>':' <span style="color:#f59e0b">⚠</span>'):""):"")}${it("Ressenti",l.rpe?l.rpe+" / 10":"")}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${esc(l.note)}</div>`:""}</div>`;
 }
 /* ---------- TERMINER LA SÉANCE ---------- */
 let qsAt=0; // ouverture du panneau : un double toucher sur « Terminer » ne doit pas valider la séance
@@ -289,7 +327,11 @@ function saveQS(id){
   state.done[id]=true;save();refresh();if(s.vmaTest)renderPaces();closeQS();if($("#ov").classList.contains("on"))openS(id);
   const v=+fcV;toast(cap&&v?(v<=cap?`Séance validée 💪 · EF respectée (≤ ${cap})`:`Séance validée · FC au-dessus de ${cap} : ralentis la prochaine fois`):"Séance validée 💪",cap&&v?3500:2000);
 }
-function closeS(){$("#ov").classList.remove("on");document.body.style.overflow="";}
+function closeS(o){
+  const was=$("#ov").classList.contains("on");$("#ov").classList.remove("on");document.body.style.overflow="";
+  if(!was||(o&&o.noPush)||!location.hash.startsWith("#seance/"))return;
+  if(sheetPushed){sheetPushed=false;popIgnore=true;history.back();}else{try{history.replaceState(null,"","#"+curView());}catch(e){}}
+}
 
 /* ---------- PACES ---------- */
 const kmh=v=>v.toFixed(1).replace(".",",");
@@ -416,14 +458,51 @@ function renderGuide(){
 }
 
 /* ---------- EVENTS ---------- */
-function show(tab){setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis")initAnalysis();},0);document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));window.scrollTo(0,0);}
+const VIEWS=["dash","plan","paces","race","analysis","guide"];
+const curView=()=>{const v=document.querySelector(".view.on");return v?v.id.slice(2):"dash";};
+let popIgnore=false,pendingHash=null,sheetPushed=false;
+function navPush(h){if(location.hash===h)return;if(popIgnore){pendingHash=h;return;}try{history.pushState(null,"",h);}catch(e){}}
+function show(tab,o){
+  if(tab==="race"&&!IS10())tab="dash";
+  setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis")initAnalysis();},0);
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));
+  document.querySelectorAll("#bnav [data-bn]").forEach(b=>b.classList.toggle("on",b.dataset.bn===(["dash","plan","analysis"].includes(tab)?tab:"more")));
+  window.scrollTo(0,0);
+  if(!(o&&o.noPush))navPush("#"+tab);
+}
+function route(){
+  const [a,b]=location.hash.slice(1).split("/");
+  if($("#qs").classList.contains("on"))closeQS();if($("#more").classList.contains("on"))closeMore();
+  if(a==="seance"&&b){const s=ALL.find(x=>x.id===b);if(s){if(s.cy!==CY.id)setCycle(s.cy);openS(b,{noPush:true});sheetPushed=false;return;}}
+  if($("#ov").classList.contains("on"))closeS({noPush:true});
+  const v=VIEWS.includes(a)?a:"dash";if(v!==curView())show(v,{noPush:true});
+}
+window.addEventListener("popstate",()=>{if(popIgnore){popIgnore=false;if(pendingHash){const h=pendingHash;pendingHash=null;if(h!==location.hash)try{history.pushState(null,"",h);}catch(e){}}return;}route();});
+function openMore(){
+  const def=defaultCycle(),it=(attr,ic,l,s)=>`<button class="moreIt" ${attr}><span class="mIc">${ic}</span><span style="flex:1;text-align:left"><b>${l}</b>${s?`<span class="mut">${s}</span>`:""}</span><span class="mut">›</span></button>`;
+  $("#moreBody").innerHTML=`<div class="grab"></div>
+   ${it('data-tab="paces"',"⏱","Allures & test","zones FC, VMA, allures")}
+   ${it('data-tab="guide"',"📖","Guide","piloter l'EF, montre, imprévus")}
+   ${IS10()?it('data-tab="race"',"🏁","Course","plan de passage, bracelet"):""}
+   ${CYCLES.filter(c=>c!==CY).map(c=>it(`data-cycle="${c.id}"`,"🗂",c===def?"Revenir à "+c.name:"Voir l'archive "+c.name,c.full)).join("")}
+   ${it("data-gofoot","🔄","Synchro et sauvegarde","appareils, export, import")}
+   <button class="btn" style="width:100%;margin-top:10px" data-moreclose>Fermer</button>`;
+  $("#more").classList.add("on");document.body.style.overflow="hidden";
+}
+function closeMore(){$("#more").classList.remove("on");if(!$("#ov").classList.contains("on")&&!$("#qs").classList.contains("on"))document.body.style.overflow="";}
 function refresh(){applyVMA();renderDash();renderPlan();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-bn],[data-moreclose],[data-gofoot],[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(e.target===$("#qs")){closeQS();return;}
+  if(e.target===$("#more")){closeMore();return;}
+  if(el&&el.closest("#more")&&!el.hasAttribute("data-gofoot"))closeMore();
   if(!el)return;
   if(el.closest("#qs")&&Date.now()-qsAt<600)return;
+  if(el.dataset.bn){if(el.dataset.bn==="more")openMore();else show(el.dataset.bn);return;}
+  if(el.hasAttribute("data-moreclose"))return;
+  if(el.hasAttribute("data-gofoot")){closeMore();$("footer").scrollIntoView({behavior:"smooth"});return;}
   if(el.dataset.finish){openQS(el.dataset.finish);}
   else if(el.dataset.watch){if(isTouch())toast("Fichier montre : à télécharger depuis le Mac, puis à copier dans GARMIN/NewFiles",4200);else exportFit(el.dataset.watch);}
   else if(el.hasAttribute("data-qsclose")){closeQS();}
@@ -455,7 +534,7 @@ document.addEventListener("click",e=>{
   else if(el.hasAttribute("data-gotest")){const vm=el.dataset.gotest==="vma";closeS();if(vm&&IS10())setCycle("hiver");show("paces");setTimeout(()=>{const f=$(vm?"#vmaIn":"#t5");f.scrollIntoView({block:"center"});f.focus();},300);}
 });
 document.addEventListener("change",e=>{const c=e.target.closest("[data-check]");if(!c)return;const id=c.dataset.check;if(c.checked)state.done[id]=true;else delete state.done[id];save();refresh();toast(c.checked?"Séance validée 💪":"Séance décochée");});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#qs").classList.contains("on"))closeQS();else{closeS();bigClose();}}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#more").classList.contains("on"))closeMore();else if($("#qs").classList.contains("on"))closeQS();else{closeS();bigClose();}}});
 window.addEventListener("afterprint",()=>document.body.classList.remove("printband"));
 $("#calcBtn").onclick=()=>{const v=$("#t5").value;if(!parseT(v)||parseT(v)<900||parseT(v)>2400){toast("Format attendu : 20:45");return;}state.test=v;save();renderPaces();renderDash();toast("Allure de course mise à jour");};
 $("#t5").addEventListener("keydown",e=>{if(e.key==="Enter")$("#calcBtn").click();});
@@ -499,5 +578,6 @@ function nbspTree(root){
 new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(nbspTree))).observe(document.body,{childList:true,subtree:true});
 
 applyVMA();renderCycBar();renderDash();renderPlan();renderPaces();renderGuide();
+if(location.hash.length>1)route();else try{history.replaceState(null,"","#dash");}catch(e){}
 nbspTree(document.body);
 syncInit();

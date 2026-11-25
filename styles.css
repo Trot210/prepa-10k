@@ -365,3 +365,47 @@ a.btn{color:inherit;text-decoration:none;display:inline-block}
 /* ---------- cibles tactiles de 44 px sur écran tactile ---------- */
 @media(pointer:coarse){.tab,.btn,.wbtn{min-height:44px}.tab{padding:10px 14px}.close{width:44px;height:44px}}
 .toast{width:max-content;max-width:calc(100% - 32px);text-align:center}
+
+/* ---------- lot 2 : barre d'onglets en bas (téléphone) ---------- */
+.bnav{display:none}
+@media(max-width:700px){
+  .tabs{display:none!important}
+  .topin{padding-bottom:10px}
+  .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:rgba(10,13,18,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+  .bnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:0;color:var(--mut);font:700 11px/1.2 Inter,system-ui,-apple-system,sans-serif;min-height:50px;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .bnav svg{width:25px;height:25px}
+  .bnav button.on{color:var(--acc)}
+  body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(86px + env(safe-area-inset-bottom))}
+}
+.moreIt{display:flex;align-items:center;gap:12px;width:100%;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;color:inherit;font:inherit;cursor:pointer;min-height:56px}
+.moreIt b{display:block}.moreIt .mut{font-size:12.5px}
+.mIc{font-size:20px;width:28px;text-align:center}
+.note.archive{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-color:rgba(168,85,247,.4);background:rgba(168,85,247,.08)}
+/* ---------- fiche séance : sections repliables, actions fixes ---------- */
+.sec.fold{border-top:1px solid var(--line);padding-top:12px}
+.sec.fold summary{cursor:pointer;list-style:none;font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut);font-weight:800;display:flex;align-items:center;gap:8px;min-height:28px}
+.sec.fold summary::-webkit-details-marker{display:none}
+.sec.fold summary:before{content:"▸";font-size:13px}
+.sec.fold[open] summary:before{content:"▾"}
+.sec.fold[open]>summary{margin-bottom:8px}
+.pact{position:sticky;bottom:0;z-index:3;display:flex;gap:8px;padding:12px 22px calc(12px + env(safe-area-inset-bottom));background:rgba(18,25,33,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-top:1px solid var(--line)}
+.pact .btn{flex:1;padding:13px 10px;font-size:15px}
+@media(max-width:620px){.pbd{padding-bottom:16px}}
+/* ---------- semaine lisible ---------- */
+.day .tl{font:800 10.5px/1 Inter,system-ui,-apple-system,sans-serif;color:#0a0d12;border-radius:6px;padding:3px 5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.day .cpMini{font:900 9.5px/1 Inter,system-ui,sans-serif;color:#06b6d4}
+.day .missMini{font:800 9.5px/1.1 Inter,system-ui,sans-serif;color:#f59e0b}
+.day.miss{border-style:dashed!important;border-color:#f59e0b99!important}
+.wkBilan{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13.5px;color:var(--mut)}
+.wkBilan b{color:var(--text)}
+/* ---------- bilan et progression ---------- */
+.bilan .bTitle{font-size:21px;font-weight:900;margin:4px 0 2px}
+.progression{padding:16px}
+.pRow{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.pDate{flex:none;width:62px;font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.pLab{font-weight:700}
+.pVal{font-weight:900;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pPred{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;color:var(--mut);line-height:1.5}
+.pPred b{color:var(--text)}
+.panel{overflow:clip}
