@@ -3,7 +3,7 @@ const FIT_HELP=`<details style="margin-top:10px"><summary class="mut" style="cur
 
 /* ---------- STATE ---------- */
 const KEY="prepa10kHoka2026_v1";
-let state={done:{},logs:{},test:"",week:null,target:"43:00",mt:{},moves:{},journal:{}};
+let state={done:{},logs:{},test:"",week:null,target:"43:00",mt:{},moves:{},journal:{},shoes:{}};
 try{const raw=localStorage.getItem(KEY);if(raw)state=Object.assign(state,JSON.parse(raw));}catch(e){}
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 stampInit();
@@ -59,7 +59,7 @@ function lines(s,b){
   return b.txt.map(x=>x.replace("(4'18 ou celle fixée par le test)","("+pace(rp.p)+"/km, fixée par ton test)").replace("≈ 21'28 pour 43'","≈ "+clock(rp.p*5-2)+" pour "+clock(rp.p*10-2)).replace(/4'18/g,pace(rp.p)));
 }
 function zr(z){const rp=racePace();return z==="Z4"&&rp.src==="test"?pace(rp.p-2)+" – "+pace(rp.p+2):Z[z].r;}
-function moveSession(id,date){
+function moveSession(id,date,noOpen){
   const s=ALL.find(x=>x.id===id);state.moves=state.moves||{};
   const c=s&&cycleOf(s);
   if(!s||!date||date<TODAY||date>c.lastMove){toast(c&&c.id==="10k"?"Choisis une date entre aujourd'hui et la veille de la course":"Choisis une date entre aujourd'hui et le "+fdate(c?c.lastMove:TODAY,{day:"numeric",month:"long"}));return;}
@@ -69,7 +69,7 @@ function moveSession(id,date){
   const msg=same?`« ${same.title} » est déjà prévue ce jour-là.`:near?`« ${near.title} » (séance intense) est prévue ${sdate(near)===date?"le même jour":"la veille ou le lendemain"} : le plan évite deux séances dures consécutives.`:"";
   if(msg&&!confirm(msg+"\nDéplacer quand même ?"))return;
   if(date===s.date)delete state.moves[id];else state.moves[id]=date;
-  save();refresh();openS(id);toast("Séance déplacée au "+fdate(date,{weekday:"long",day:"numeric",month:"long"}));
+  save();refresh();if(!noOpen)openS(id);toast("Séance déplacée au "+fdate(date,{weekday:"long",day:"numeric",month:"long"}));
 }
 function unmoveSession(id){if(state.moves)delete state.moves[id];save();refresh();openS(id);toast("Date d'origine rétablie");}
 
@@ -82,7 +82,7 @@ function weekStats(w){
   const ms=w.sessions.filter(s=>!s.opt),done=ms.filter(s=>state.done[s.id]);
   const efL=done.filter(s=>efCap(s)&&+((state.logs[s.id]||{}).fc)>0),rp=done.map(s=>+((state.logs[s.id]||{}).rpe)).filter(x=>x>0);
   return{ms,done,kmPlan:ms.reduce((a,s)=>a+s.d,0),kmDone:done.reduce((a,s)=>a+doneKm(s),0),efLogged:efL.length,efOk:efL.filter(s=>+state.logs[s.id].fc<=efCap(s)).length,
-    rpe:rp.length?(rp.reduce((a,b)=>a+b,0)/rp.length).toFixed(1).replace(".",","):"",missed:ms.filter(s=>!state.done[s.id]&&sdate(s)<TODAY)};
+    rpe:rp.length?(rp.reduce((a,b)=>a+b,0)/rp.length).toFixed(1).replace(".",","):"",missed:ms.filter(s=>!state.done[s.id]&&!(state.logs[s.id]||{}).skip&&sdate(s)<TODAY)};
 }
 function bilanCard(w){
   const b=weekStats(w),all=b.done.length===b.ms.length,efBad=b.efLogged&&b.efOk<b.efLogged;
@@ -122,24 +122,25 @@ function efStats(){
 }
 function relDay(ds){return ds===TODAY?"Aujourd'hui":ds===addDays(TODAY,1)?"Demain":ds===addDays(TODAY,-1)?"Hier":fdate(ds,{weekday:"long",day:"numeric",month:"short"});}
 function renderToday(){
-  const MAIN=CY.main,P=PL(),cw=curWeek(),w=P[cw-1],open=s=>!state.done[s.id];
+  const MAIN=CY.main,P=PL(),cw=curWeek(),w=P[cw-1],skipped=s=>!!(state.logs[s.id]||{}).skip,open=s=>!state.done[s.id]&&!skipped(s);
   const nx=MAIN.find(s=>sdate(s)===TODAY&&open(s))||MAIN.filter(s=>open(s)&&sdate(s)>TODAY).sort((a,b)=>sdate(a).localeCompare(sdate(b)))[0];
   const pend=MAIN.filter(s=>open(s)&&sdate(s)<TODAY&&sdate(s)>=addDays(TODAY,-7)).sort((a,b)=>sdate(a).localeCompare(sdate(b)));
   const mini=(l,v,s,c)=>`<div class="mini"><div class="lab">${l}</div><div class="v"${c?` style="color:${c}"`:""}>${v}</div>${s?`<div class="s">${s}</div>`:""}</div>`;
   let h="";
-  if(pend.length)h+=`<div class="note warn todo">${pend.map(s=>`<div class="todoRow"><div><b>À valider</b> · ${s.title}<div class="mut" style="font-size:12.5px">${relDay(sdate(s))}</div></div><button class="btn ok" data-finish="${s.id}">Terminer</button></div>`).join("")}</div>`;
+  if(pend.length)h+=`<div class="note warn todo">${pend.map(s=>`<div class="todoRow"><div><b>À valider</b> · ${s.title}<div class="mut" style="font-size:12.5px">${relDay(sdate(s))}</div></div><div class="todoBtns"><button class="btn" data-skip="${s.id}">Pas faite</button><button class="btn ok" data-finish="${s.id}">Terminer</button></div></div>`).join("")}</div>`;
   if(nx){const cap=efCap(nx),isT=sdate(nx)===TODAY,tc=T[nx.type].c;
     h+=`<div class="card todayCard" style="--tc:${tc}"><div class="eyebrow" style="color:${tc}">${isT?"Aujourd'hui":"Prochaine séance · "+relDay(sdate(nx))}</div>
      <div class="tTitle">${nx.title}</div><div class="mut">${nx.short}</div>
      <div class="tMeta"><span>⏱ ${dur(nx.t)}</span><span>📍 ≈ ${km(nx.d)} km</span>${cap?`<span style="color:#4ade80">❤️ ≤ ${cap}</span>`:nx.cp?`<span class="cpTag">CP${nx.cp}</span>`:""}</div>
      ${profile(nx.segs)}
+     ${nx.tips&&nx.tips[0]?`<div class="tTip">💡 ${nx.tips[0]}</div>`:""}
      <div class="tBtns"><button class="btn" data-open="${nx.id}">Détail</button><button class="btn" data-watch="${nx.id}">⌚ Montre</button><button class="btn ok" data-finish="${nx.id}">✓ Terminer</button></div></div>`;}
   else h+=`<div class="card"><b>${MAIN.every(s=>state.done[s.id])?"Toutes les séances sont validées. Bravo !":"Plus aucune séance à venir dans ce cycle."}</b></div>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]),wkKm=ms.reduce((a,s)=>a+s.d,0),dKm=dn.reduce((a,s)=>a+doneKm(s),0);
   const ef=efStats(),vm=vmaMeasured();
   if(cw>1&&TODAY<=addDays(w.mon,2))h+=bilanCard(P[cw-2]);
   h+=`<div class="minis">${mini("Semaine "+cw+" / "+P.length,dn.length+" / "+ms.length+" faites",w.phase)}${mini("Volume semaine",km(dKm)+" / "+km(wkKm)+" km","réalisé / prévu")}${mini("EF ≤ 138 bpm",ef.logged?ef.ok+" / "+ef.logged:"—",ef.logged?(ef.ok===ef.logged?"toutes respectées":"au-dessus du plafond : ralentis"):"note ta FC moyenne",ef.logged?(ef.ok===ef.logged?"#4ade80":"#f59e0b"):"")}${mini("VMA",(vm?"":"≈ ")+kmh(vm||VMA_EST)+" km/h",vm?"mesurée au test":"estimée · test le 1er déc.")}</div>`;
-  const icon=s=>state.done[s.id]?["✓","#a3e635","Faite"]:sdate(s)<TODAY?["!","#f59e0b","À valider"]:s===nx?["→","#4ade80",isTouch()?"Prochaine":"Prochaine séance"]:["","#2a3646",""];
+  const icon=s=>state.done[s.id]?["✓","#a3e635","Faite"]:skipped(s)?["–","#3a4a60","Non faite"]:sdate(s)<TODAY?["!","#f59e0b","À valider"]:s===nx?["→","#4ade80",isTouch()?"Prochaine":"Prochaine séance"]:["","#2a3646",""];
   h+=`<div class="card weekList"><div class="wlHead">Cette semaine</div>${w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(s=>{const [ic,c,lab]=icon(s);return`<div class="wlRow" data-open="${s.id}"><span class="wlIc" style="background:${c}">${ic}</span><div style="flex:1;min-width:0"><div class="wlT">${s.title}</div><div class="mut" style="font-size:12.5px">${relDay(sdate(s))} · ${dur(s.t)}${lab?` · ${lab}`:""}</div></div><span class="mut">›</span></div>`;}).join("")}</div>`;
   h+=progressionCard();
   $("#today").innerHTML=h;
@@ -232,10 +233,23 @@ function renderReal(){
 }
 
 /* ---------- PLAN VIEW ---------- */
+const CALS={recup:"Réc",fart:"Fart",spec:"Spé",race:"10K"};
 const SHORT={recup:"Récup",ef:"EF",long:"SL",frac:"Frac",fart:"Fartlek",seuil:"Seuil",spec:"Spé",test:"Test",race:"Course"};
 function curWeek(){let n=1;PL().forEach(w=>{if(w.mon<=TODAY)n=w.n;});return n;}
 let week=curWeek();
+let planMode=(()=>{try{return sessionStorage.getItem("prepa10kPlanMode")||"week";}catch(e){return"week";}})();
+function renderCal(){
+  const P=PL(),dn=["lun","mar","mer","jeu","ven","sam","dim"];
+  let h=`<div class="calG"><div class="calH"></div>${dn.map(d=>`<div class="calH">${d}</div>`).join("")}`;
+  P.forEach(w=>{h+=`<div class="calW">S${w.n}</div>`;for(let i=0;i<7;i++){const ds=addDays(w.mon,i),s=CY.all.find(x=>sdate(x)===ds),dnS=s&&state.done[s.id],sk=s&&(state.logs[s.id]||{}).skip,miss=s&&!dnS&&!sk&&ds<TODAY,out=ds<CY.from||ds>CY.to;
+    const drag=s&&!dnS&&ds>=TODAY&&ds<=cycleOf(s).lastMove&&!isTouch();
+    h+=`<div class="calD ${ds===TODAY?"today":""} ${miss?"miss":""} ${out?"out":""}" data-cday="${ds}" ${s?`data-open="${s.id}"`:""}><span class="cdn">${+ds.slice(8)}</span>${s?`<span class="tl" ${drag?`draggable="true" data-drag="${s.id}"`:""} style="background:${T[s.type].c}">${CALS[s.type]||SHORT[s.type]||T[s.type].n}</span>${dnS?'<span class="cOk">✓</span>':sk?'<span class="cSk">–</span>':s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}`:""}</div>`;}});
+  $("#calGrid").innerHTML=h+`</div><div class="mut" style="font-size:12.5px;margin-top:10px">${isTouch()?"Touche une séance pour l'ouvrir. Pour la déplacer : fiche → Déplacer la séance.":"Glisse une séance à venir sur un autre jour pour la déplacer (deux séances dures ne peuvent pas se suivre)."}</div>`;
+}
 function renderPlan(){
+  document.querySelectorAll("[data-pmode]").forEach(b=>b.classList.toggle("on",b.dataset.pmode===planMode));
+  const cal=planMode==="cycle";["#weekNav","#weekHead","#strip","#sessGrid"].forEach(s=>{$(s).style.display=cal?"none":"";});$("#calGrid").style.display=cal?"":"none";
+  if(cal)renderCal();
   const P=PL(),w=P[week-1];
   $("#weekNav").innerHTML=`<button class="wbtn arrow" data-wnav="-1" ${week===1?"disabled":""}>←</button>`+P.map(x=>`<button class="wbtn ${x.n===week?"on":""}" data-week="${x.n}">S${x.n}</button>`).join("")+`<button class="wbtn arrow" data-wnav="1" ${week===P.length?"disabled":""}>→</button><span class="mut" style="margin-left:6px;font-weight:600;font-size:14px">${fdate(w.mon,{day:"numeric",month:"long"})} – ${fdate((()=>{const d=D(w.mon);d.setDate(d.getDate()+6);const e=d.toISOString().slice(0,10);return e>CY.to?CY.to:e;})(),{day:"numeric",month:"long"})}</span>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]).length,wkKm=ms.reduce((a,s)=>a+s.d,0),wkT=ms.reduce((a,s)=>a+s.t,0);
@@ -245,7 +259,7 @@ function renderPlan(){
   <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div class="stat"><div class="l">Distance</div><div class="v">${km(wkKm)} km</div></div><div class="stat"><div class="l">Durée</div><div class="v">${dur(wkT)}</div></div><div class="stat"><div class="l">Faites</div><div class="v">${dn} / ${ms.length}</div></div><div class="stat" style="min-width:120px"><div class="l">Charge relative</div><div class="bar" style="margin-top:8px"><i style="width:${wkKm/maxKm*100}%"></i></div></div></div></div>${past&&ws.done.length?`<div class="wkBilan">Réalisé : <b>${km(ws.kmDone)} km</b> sur ${km(ws.kmPlan)}${ws.efLogged?` · EF sous ${CY.id==="hiver"?"138":"le plafond"} : <b>${ws.efOk} / ${ws.efLogged}</b>`:""}${ws.rpe?` · ressenti moyen <b>${ws.rpe}</b> / 10`:""}${ws.missed.length?` · <span style="color:#f59e0b">${ws.missed.length} à valider</span>`:""}</div>`:""}`;
   // strip
   let strip="";for(let i=0;i<7;i++){const d=new Date(D(w.mon));d.setDate(d.getDate()+i);const ds=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");const s=w.sessions.find(x=>sdate(x)===ds);
-    strip+=`<div class="day ${s?"has":""} ${ds===TODAY?"today":""} ${s&&state.done[s.id]?"done":""} ${s&&!state.done[s.id]&&ds<TODAY?"miss":""}" ${s?`data-open="${s.id}"`:""} style="${s?`border-color:${T[s.type].c}66;background:${T[s.type].c}10`:""}"><div class="dn">${d.toLocaleDateString("fr-FR",{weekday:"short"}).replace(".","")}</div><div class="dd">${d.getDate()}</div>${s?`<span class="tl" style="background:${T[s.type].c}">${SHORT[s.type]||T[s.type].n.split(" ")[0]}</span>${s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}${!state.done[s.id]&&ds<TODAY?`<span class="missMini">à valider</span>`:`<div class="dt">${dur(s.t)}</div>`}`:`<div class="dt">Repos</div>`}</div>`;}
+    strip+=`<div class="day ${s?"has":""} ${ds===TODAY?"today":""} ${s&&state.done[s.id]?"done":""} ${s&&!state.done[s.id]&&!(state.logs[s.id]||{}).skip&&ds<TODAY?"miss":""}" ${s?`data-open="${s.id}"`:""} style="${s?`border-color:${T[s.type].c}66;background:${T[s.type].c}10`:""}"><div class="dn">${d.toLocaleDateString("fr-FR",{weekday:"short"}).replace(".","")}</div><div class="dd">${d.getDate()}</div>${s?`<span class="tl" style="background:${T[s.type].c}">${SHORT[s.type]||T[s.type].n.split(" ")[0]}</span>${s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}${(state.logs[s.id]||{}).skip?`<span class="dt" style="display:block">non faite</span>`:!state.done[s.id]&&ds<TODAY?`<span class="missMini">à valider</span>`:`<div class="dt">${dur(s.t)}</div>`}`:`<div class="dt">Repos</div>`}</div>`;}
   $("#strip").innerHTML=strip;
   $("#sessGrid").innerHTML=w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(card).join("");
   $("#legendTypes").innerHTML=Object.values(T).map(t=>`<span><i class="dot" style="background:${t.c}"></i>${t.n}</span>`).join("")+`<span style="margin-left:auto"><span class="cpTag">CP</span>&nbsp;point de contrôle</span>`;
@@ -288,7 +302,10 @@ function openS(id,o){
 }
 /* résumé de ce qui a été noté pour une séance */
 function logSummary(s){
-  const l=state.logs[s.id]||{},dn=!!state.done[s.id];if(!dn&&!l.dur&&!l.fc&&!l.rpe)return"";
+  const l=state.logs[s.id]||{},dn=!!state.done[s.id];
+  if(l.skip&&!dn)return`<div class="sec"><div class="note">Marquée comme <b>non faite</b>. Pas de rattrapage : reprends le plan normalement. <button class="btn" style="margin-top:8px" data-unskip="${s.id}">Remettre à faire</button></div></div>`;
+  if(!dn&&!l.dur&&!l.fc&&!l.rpe)return"";
+  if(l.act)return actBlock(l.act,s)+(l.rpe||l.note?`<div class="sec"><div class="stats" style="margin-top:0">${l.rpe?`<div class="stat"><div class="l">Ressenti</div><div class="v">${l.rpe} / 10</div></div>`:""}${l.shoe&&(state.shoes||{})[l.shoe]?`<div class="stat"><div class="l">Chaussures</div><div class="v" style="font-size:14px">${esc(state.shoes[l.shoe].name)}</div></div>`:""}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${esc(l.note)}</div>`:""}</div>`:`<div class="sec"><div class="note warn">Ressenti à noter : touche « Réalisée · modifier » en bas.</div></div>`);
   const cap=efCap(s),fc=+l.fc,it=(k,v)=>v?`<div class="stat"><div class="l">${k}</div><div class="v">${v}</div></div>`:"";
   return`<div class="sec"><h4>${dn?"Réalisée":"Notée"}</h4><div class="stats" style="margin-top:0">${it("Durée",l.dur?clock(parseT(l.dur)).replace("'"," min ").replace(/ min 00$/," min"):"")}${it("Distance",l.dist?km(+l.dist)+" km":"")}${it("FC moy.",fc?fc+(cap?(fc<=cap?' <span style="color:#4ade80">✓</span>':' <span style="color:#f59e0b">⚠</span>'):""):"")}${it("Ressenti",l.rpe?l.rpe+" / 10":"")}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${esc(l.note)}</div>`:""}</div>`;
 }
@@ -309,6 +326,7 @@ function openQS(id){
    <div class="qLab">Effort ressenti</div>
    <div class="rpe">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="btn ${String(l.rpe)===String(n)?"on":""}" data-rpe="${n}">${n}</button>`).join("")}</div>
    <div class="rpeLeg"><span>très facile</span><span>maximal</span></div>
+   ${shoesList().some(x=>!x.ret)?`<div class="fld" style="margin-top:12px"><label class="qLab" style="margin:0 0 6px;display:block">Chaussures</label><select id="qShoe">${shoesList().filter(x=>!x.ret||x.id===l.shoe).map(x=>`<option value="${x.id}" ${(l.shoe||defShoe())===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}<option value="none" ${l.shoe==="none"?"selected":""}>Aucune</option></select></div>`:""}
    <details class="qNote"${l.note?" open":""}><summary>Ajouter une note</summary><textarea id="qNote" rows="2" placeholder="Sensations, allures des blocs, météo…">${l.note||""}</textarea></details>
    <button class="btn ok qSave" data-qsave="${id}">${dn?"Mettre à jour":"Enregistrer"}</button>
    <div class="qFoot"><button class="btn" data-qsclose>Annuler</button>${dn?`<button class="btn" data-undo="${id}">Marquer comme non faite</button>`:""}</div>`;
@@ -323,7 +341,7 @@ function saveQS(id){
   if(durV&&!parseT(durV)){toast("Durée attendue au format 55:00 ou 1:04:00",3000);return;}
   const rb=document.querySelector("#qs [data-rpe].on"),fcV=$("#qFc").value.trim();
   if(s.vmaTest&&$("#qVma").value.trim()){const d=Math.round(+$("#qVma").value.replace(/\s/g,""));if(!(d>=1100&&d<=2200)){toast("Distance en 6' attendue entre 1100 et 2200 m",3000);return;}state.logs.vma={d:String(d),date:TODAY};applyVMA();}
-  state.logs[id]={dist:$("#qDist").value.replace(",",".").trim(),dur:durV,fc:fcV,rpe:rb?rb.dataset.rpe:(old.rpe||""),note:$("#qNote").value};
+  const shSel=$("#qShoe");state.logs[id]=Object.assign({},old,{dist:$("#qDist").value.replace(",",".").trim(),dur:durV,fc:fcV,rpe:rb?rb.dataset.rpe:(old.rpe||""),note:$("#qNote").value,shoe:shSel?shSel.value:(old.shoe||defShoe())});delete state.logs[id].skip;
   state.done[id]=true;save();refresh();if(s.vmaTest)renderPaces();closeQS();if($("#ov").classList.contains("on"))openS(id);
   const v=+fcV;toast(cap&&v?(v<=cap?`Séance validée 💪 · EF respectée (≤ ${cap})`:`Séance validée · FC au-dessus de ${cap} : ralentis la prochaine fois`):"Séance validée 💪",cap&&v?3500:2000);
 }
@@ -464,7 +482,7 @@ let popIgnore=false,pendingHash=null,sheetPushed=false;
 function navPush(h){if(location.hash===h)return;if(popIgnore){pendingHash=h;return;}try{history.pushState(null,"",h);}catch(e){}}
 function show(tab,o){
   if(tab==="race"&&!IS10())tab="dash";
-  setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis")initAnalysis();},0);
+  setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis"){renderActs();initAnalysis();}},0);
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));
   document.querySelectorAll("#bnav [data-bn]").forEach(b=>b.classList.toggle("on",b.dataset.bn===(["dash","plan","analysis"].includes(tab)?tab:"more")));
@@ -486,20 +504,29 @@ function openMore(){
    ${it('data-tab="guide"',"📖","Guide","piloter l'EF, montre, imprévus")}
    ${IS10()?it('data-tab="race"',"🏁","Course","plan de passage, bracelet"):""}
    ${CYCLES.filter(c=>c!==CY).map(c=>it(`data-cycle="${c.id}"`,"🗂",c===def?"Revenir à "+c.name:"Voir l'archive "+c.name,c.full)).join("")}
+   ${it("data-shoes","👟","Chaussures","kilométrage de tes paires")}
    ${it("data-gofoot","🔄","Synchro et sauvegarde","appareils, export, import")}
    <button class="btn" style="width:100%;margin-top:10px" data-moreclose>Fermer</button>`;
   $("#more").classList.add("on");document.body.style.overflow="hidden";
 }
 function closeMore(){$("#more").classList.remove("on");if(!$("#ov").classList.contains("on")&&!$("#qs").classList.contains("on"))document.body.style.overflow="";}
-function refresh(){applyVMA();renderDash();renderPlan();}
+function refresh(){applyVMA();renderDash();renderPlan();if(curView()==="analysis")renderActs();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-bn],[data-moreclose],[data-gofoot],[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-act],[data-impgo],[data-shoe],[data-shoes],[data-actdel],[data-skip],[data-unskip],[data-pmode],[data-bn],[data-moreclose],[data-gofoot],[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(e.target===$("#qs")){closeQS();return;}
   if(e.target===$("#more")){closeMore();return;}
-  if(el&&el.closest("#more")&&!el.hasAttribute("data-gofoot"))closeMore();
+  if(el&&el.closest("#more")&&!el.matches("[data-gofoot],[data-shoe],[data-impgo],[data-shoes]"))closeMore();
   if(!el)return;
   if(el.closest("#qs")&&Date.now()-qsAt<600)return;
+  if(el.dataset.act){openAct(el.dataset.act);return;}
+  if(el.hasAttribute("data-impgo")){importGo();return;}
+  if(el.dataset.shoe){shoeAction(el.dataset.shoe);return;}
+  if(el.hasAttribute("data-shoes")){setTimeout(openShoes,0);return;}
+  if(el.dataset.actdel){if(confirm("Supprimer cette sortie importée ?")){delete state.logs[el.dataset.actdel];save();closeS();refresh();renderActs();}return;}
+  if(el.dataset.skip){const id=el.dataset.skip;state.logs[id]=Object.assign({},state.logs[id]||{},{skip:true});save();refresh();toast("Pas de rattrapage : reprends le plan normalement, sans doubler la séance suivante.",4200);return;}
+  if(el.dataset.unskip){const id=el.dataset.unskip;if(state.logs[id])delete state.logs[id].skip;save();refresh();openS(id);return;}
+  if(el.dataset.pmode){planMode=el.dataset.pmode;try{sessionStorage.setItem("prepa10kPlanMode",planMode);}catch(e){}renderPlan();return;}
   if(el.dataset.bn){if(el.dataset.bn==="more")openMore();else show(el.dataset.bn);return;}
   if(el.hasAttribute("data-moreclose"))return;
   if(el.hasAttribute("data-gofoot")){closeMore();$("footer").scrollIntoView({behavior:"smooth"});return;}
@@ -533,6 +560,10 @@ document.addEventListener("click",e=>{
   else if(el.hasAttribute("data-bkpaste")){const t=prompt("Colle ici le contenu de ta sauvegarde :");if(t)importBackup(t);}
   else if(el.hasAttribute("data-gotest")){const vm=el.dataset.gotest==="vma";closeS();if(vm&&IS10())setCycle("hiver");show("paces");setTimeout(()=>{const f=$(vm?"#vmaIn":"#t5");f.scrollIntoView({block:"center"});f.focus();},300);}
 });
+/* glisser-déposer dans le calendrier (ordinateur) */
+document.addEventListener("dragstart",e=>{const d=e.target.closest&&e.target.closest("[data-drag]");if(d){e.dataTransfer.setData("text/plain",d.dataset.drag);e.dataTransfer.effectAllowed="move";}});
+document.addEventListener("dragover",e=>{const c=e.target.closest&&e.target.closest("[data-cday]");if(c){e.preventDefault();document.querySelectorAll(".calD.over").forEach(x=>x!==c&&x.classList.remove("over"));c.classList.add("over");}});
+document.addEventListener("drop",e=>{const c=e.target.closest&&e.target.closest("[data-cday]");document.querySelectorAll(".calD.over").forEach(x=>x.classList.remove("over"));if(!c)return;e.preventDefault();const id=e.dataTransfer.getData("text/plain");if(id)moveSession(id,c.dataset.cday,true);});
 document.addEventListener("change",e=>{const c=e.target.closest("[data-check]");if(!c)return;const id=c.dataset.check;if(c.checked)state.done[id]=true;else delete state.done[id];save();refresh();toast(c.checked?"Séance validée 💪":"Séance décochée");});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#more").classList.contains("on"))closeMore();else if($("#qs").classList.contains("on"))closeQS();else{closeS();bigClose();}}});
 window.addEventListener("afterprint",()=>document.body.classList.remove("printband"));
