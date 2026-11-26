@@ -505,3 +505,12 @@ body.fitdrop #actsRoot .actsCard{outline:2px dashed var(--acc);outline-offset:4p
 /* en-tête ordinateur : onglet Plus discret */
 .tab[data-bn="more"]{color:var(--mut)}
 .chgSvg{max-height:210px}
+
+/* légende du tableau des étapes */
+.lapH{border-top:0;padding-top:2px;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.lapH span{cursor:help}
+.lapLeg{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;line-height:1.45;color:var(--mut)}
+.lapLeg b{color:var(--text);font-weight:700;margin-right:3px}
+@media(max-width:520px){.lapLeg{flex-direction:column}}
+.lapH span{white-space:nowrap}
+@media(max-width:520px){.lapH{letter-spacing:0;font-size:10px}}
