@@ -1,4 +1,5 @@
 /* ---------- SORTIES IMPORTÉES, CHARGE ET FORME, CHAUSSURES ---------- */
+const escH=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 /* Les sorties sont rangées dans le suivi de la séance (state.logs[id].act) ; une sortie hors plan
    est rangée sous une clé « x-AAAAMMJJ-HHMM ». Tout reste dans le navigateur (et la synchro). */
 const GZ=[117,137,157,176];                       // bornes hautes des zones Garmin de Lucien
@@ -38,7 +39,7 @@ function importFiles(files){
     IMP=res;const known=new Set(actLogs().map(x=>x.l.act.start));
     const cand=d=>ALL.filter(s=>Math.abs((D(sdate(s))-D(d))/864e5)<=3).sort((a,b)=>Math.abs(D(sdate(a))-D(d))-Math.abs(D(sdate(b))-D(d)));
     $("#moreBody").innerHTML=`<div class="grab"></div><div class="eyebrow" style="color:#4ade80">Importer des sorties</div><div class="qsTitle">${res.length} fichier${res.length>1?"s":""}</div>
-     ${res.map((r,i)=>{if(r.err)return`<div class="impRow"><b>${esc(r.f.name)}</b><div class="mut" style="color:#f59e0b">${esc(r.err)}</div></div>`;
+     ${res.map((r,i)=>{if(r.err)return`<div class="impRow"><b>${escH(r.f.name)}</b><div class="mut" style="color:#f59e0b">${escH(r.err)}</div></div>`;
        const a=r.sum,dup=known.has(a.start),c=cand(a.date),def=dup?"skip":(c.find(s=>sdate(s)===a.date&&!(state.logs[s.id]||{}).act)||c.find(s=>!state.done[s.id]&&!(state.logs[s.id]||{}).act)||{id:"free"}).id;
        return`<div class="impRow"><b>${fdate(a.date,{weekday:"long",day:"numeric",month:"short"})} · ${new Date(a.start).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}</b><div class="mut">${clk(a.dur)} · ${km(a.dist/1000)} km${a.hrAvg?" · FC "+a.hrAvg:""}${dup?' · <span style="color:#f59e0b">déjà importée</span>':""}</div>
         <select data-imp="${i}">${c.map(s=>`<option value="${s.id}" ${s.id===def?"selected":""}>${fdate(sdate(s),{weekday:"short",day:"numeric",month:"short"})} · ${s.title}${state.done[s.id]?" (validée)":""}</option>`).join("")}<option value="free" ${def==="free"?"selected":""}>Sortie hors plan</option><option value="skip" ${def==="skip"?"selected":""}>Ne pas importer</option></select></div>`;}).join("")}
@@ -78,12 +79,12 @@ function actBlock(a,s){
   const zt=a.z.reduce((x,y)=>x+y,0)||1;
   const zones=`<div class="zBar">${a.z.map((t,i)=>t?`<i style="width:${t/zt*100}%;background:${GZC[i]}" title="Zone ${i+1}"></i>`:"").join("")}</div><div class="zLeg">${a.z.map((t,i)=>t?`<span><i style="background:${GZC[i]}"></i>Z${i+1} ${Math.round(t/60)}'</span>`:"").join("")}</div>`;
   const tgL=a.laps.filter(x=>x.tg);
-  const laps=tgL.length?`<details class="sec fold"${tgL.some(x=>x.tg.p)?" open":""}><summary>Étapes de la séance · ${tgL.filter(x=>x.ok).length} / ${tgL.filter(x=>x.ok!=null).length} dans la cible</summary><div class="lapT">${a.laps.map(x=>`<div class="lapR"><span>${esc(x.n)}</span><span>${clk(x.t)}</span><span>${x.d>=200?pace1(x.t,x.d):x.d+" m"}</span><span>${x.hr||""}</span><span class="mut">${x.tg?x.tg.p?pace(x.tg.p[1])+"–"+pace(x.tg.p[0]):(x.pin!=null?x.pin+" % ":"")+"≤ "+x.tg.h[1]:""}</span><b>${x.ok==null?"":x.ok?'<span style="color:#4ade80">✓</span>':'<span style="color:#f59e0b">⚠</span>'}</b></div>`).join("")}</div></details>`:"";
+  const laps=tgL.length?`<details class="sec fold"${tgL.some(x=>x.tg.p)?" open":""}><summary>Étapes de la séance · ${tgL.filter(x=>x.ok).length} / ${tgL.filter(x=>x.ok!=null).length} dans la cible</summary><div class="lapT">${a.laps.map(x=>`<div class="lapR"><span>${escH(x.n)}</span><span>${clk(x.t)}</span><span>${x.d>=200?pace1(x.t,x.d):x.d+" m"}</span><span>${x.hr||""}</span><span class="mut">${x.tg?x.tg.p?pace(x.tg.p[1])+"–"+pace(x.tg.p[0]):(x.pin!=null?x.pin+" % ":"")+"≤ "+x.tg.h[1]:""}</span><b>${x.ok==null?"":x.ok?'<span style="color:#4ade80">✓</span>':'<span style="color:#f59e0b">⚠</span>'}</b></div>`).join("")}</div></details>`:"";
   const kms=a.km.length?`<details class="sec fold"><summary>Kilomètres · ${a.km.length}</summary><div class="kmL">${a.km.map((k,i)=>`<span><b>${i+1}</b> ${pace(k[0])}${k[1]?` · ${k[1]}`:""}</span>`).join("")}</div></details>`:"";
   let tip="";
   if(a.inT&&cap&&a.inT.pct<85)tip=`<div class="note warn" style="margin-top:10px;font-size:13.5px">${100-a.inT.pct} % du temps facile au-dessus de la cible. Sur la prochaine EF, ralentis dès que la montre vibre, et marche 20" en côte si besoin.</div>`;
   else if(tgL.some(x=>x.tg.p&&x.ok===false))tip=`<div class="note warn" style="margin-top:10px;font-size:13.5px">Certaines fractions sont hors de la plage d'allure. Plus rapide que prévu : garde de la marge pour les dernières ; plus lent : vérifie la fatigue de la semaine.</div>`;
-  return`<div class="sec act"><h4>Sortie importée · ${esc(a.file||"montre")}</h4>${cmp}<div class="card2b">${inT}${hrChart(a,cap)}${zones}</div>${tip}${laps}${kms}</div>`;
+  return`<div class="sec act"><h4>Sortie importée · ${escH(a.file||"montre")}</h4>${cmp}<div class="card2b">${inT}${hrChart(a,cap)}${zones}</div>${tip}${laps}${kms}</div>`;
 }
 function openAct(k){
   const l=state.logs[k];if(!l||!l.act)return;
@@ -129,20 +130,37 @@ function chargeCard(){
     :ratio<.7?`<div class="mut" style="font-size:13px;margin-top:8px">7 derniers jours : ${Math.round((1-ratio)*100)} % sous ta moyenne. Normal en semaine allégée ou après un imprévu.</div>`
     :`<div class="mut" style="font-size:13px;margin-top:8px">7 derniers jours : charge stable par rapport à ta moyenne (${ratio>=1?"+":""}${Math.round((ratio-1)*100)} %).</div>`;
   return`<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><b>Charge et forme</b><span class="mut" style="font-size:12px">charge = minutes × ressenti</span></div>
-   <svg viewBox="0 0 ${W} 130" width="100%" style="display:block;margin-top:8px">${bars}${line}</svg>
+   <svg viewBox="0 0 ${W} 130" width="100%" class="chgSvg" style="display:block;margin-top:8px">${bars}${line}</svg>
    <div class="zLeg" style="margin-top:2px"><span><i style="background:#3b82f6"></i>charge de la semaine</span><span><i style="background:#4ade80;height:3px"></i>fraîcheur (plus haut = plus reposé)</span></div>${note}
    ${items.some(x=>x.est)?`<div class="mut" style="font-size:12px;margin-top:6px">Ressenti non noté : valeur estimée d'après le type de séance.</div>`:""}</div>`;
 }
 
 /* ----- écran « Mes sorties » (onglet Analyse) ----- */
+let actSel=null;
+const wideActs=()=>matchMedia("(min-width:1100px)").matches;
+function actPane(k){
+  const l=state.logs[k];if(!l||!l.act)return`<div class="mut">Sélectionne une sortie dans la liste.</div>`;
+  const s=ALL.find(x=>x.id===k)||null;
+  return`<div class="paneHd"><div><div class="eyebrow" style="color:${s?T[s.type].c:"#06b6d4"}">${fdate(l.act.date,{weekday:"long",day:"numeric",month:"long"})}</div><div class="paneT">${s?s.title:"Sortie hors plan"}</div></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">${s?`<button class="btn" data-open="${k}">Fiche complète</button><button class="btn ${l.rpe?"":"ok"}" data-finish="${k}">${l.rpe?"Modifier":"Noter le ressenti"}</button>`:`<button class="btn" data-actdel="${k}">Supprimer</button>`}</div></div>
+   ${actBlock(l.act,s)}`;
+}
 function renderActs(){
   const el=$("#actsRoot");if(!el)return;
-  const list=actLogs().sort((a,b)=>b.l.act.start.localeCompare(a.l.act.start));
-  el.innerHTML=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b style="font-size:17px">Mes sorties</b><div class="mut" style="font-size:13px">${isTouch()?"Importe depuis le Mac (montre branchée), ou depuis Fichiers si tu y as copié les sorties.":"Branche la montre : les sorties sont dans GARMIN/Activity (fichiers .fit)."}</div></div><label class="btn ok" style="cursor:pointer">⌚ Importer des sorties<input type="file" accept=".fit,.FIT" multiple hidden id="actFile"></label></div>
-   ${list.length?`<div style="margin-top:10px">${list.slice(0,12).map(({k,l,s})=>`<div class="wlRow" ${s?`data-open="${k}"`:`data-act="${k}"`}><span class="wlIc" style="background:${s?T[s.type].c:"#06b6d4"}">${l.act.inT?(l.act.inT.pct>=85?"✓":"!"):"·"}</span><div style="flex:1;min-width:0"><div class="wlT">${s?s.title:"Sortie hors plan"}</div><div class="mut" style="font-size:12.5px">${fdate(l.act.date,{weekday:"short",day:"numeric",month:"short"})} · ${clk(l.act.dur)} · ${km(l.act.dist/1000)} km${l.act.hrAvg?" · FC "+l.act.hrAvg:""}${l.act.inT?" · "+l.act.inT.pct+" % en cible":""}${l.rpe?"":' · <span style="color:#f59e0b">ressenti à noter</span>'}</div></div><span class="mut">›</span></div>`).join("")}</div>`:`<div class="mut" style="margin-top:10px;font-size:13.5px">Aucune sortie importée pour l'instant.</div>`}</div>
-   ${chargeCard()}`;
+  const list=actLogs().sort((a,b)=>b.l.act.start.localeCompare(a.l.act.start)),wide=wideActs();
+  if(wide&&list.length&&!list.some(x=>x.k===actSel))actSel=list[0].k;
+  const row=({k,l,s})=>`<div class="wlRow${wide&&k===actSel?" sel":""}" ${wide?`data-actsel="${k}"`:s?`data-open="${k}"`:`data-act="${k}"`}><span class="wlIc" style="background:${s?T[s.type].c:"#06b6d4"}">${l.act.inT?(l.act.inT.pct>=85?"✓":"!"):"·"}</span><div style="flex:1;min-width:0"><div class="wlT">${s?s.title:"Sortie hors plan"}</div><div class="mut" style="font-size:12.5px">${fdate(l.act.date,{weekday:"short",day:"numeric",month:"short"})} · ${clk(l.act.dur)} · ${km(l.act.dist/1000)} km${l.act.hrAvg?" · FC "+l.act.hrAvg:""}${l.act.inT?" · "+l.act.inT.pct+" % en cible":""}${l.rpe?"":' · <span style="color:#f59e0b">ressenti à noter</span>'}</div></div><span class="mut">›</span></div>`;
+  const head=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b style="font-size:17px">Mes sorties</b><div class="mut" style="font-size:13px">${isTouch()?"Importe depuis le Mac (montre branchée), ou depuis Fichiers si tu y as copié les sorties.":"Branche la montre : les sorties sont dans GARMIN/Activity (fichiers .fit). Tu peux aussi les glisser ici."}</div></div><label class="btn ok" style="cursor:pointer">⌚ Importer des sorties<input type="file" accept=".fit,.FIT" multiple hidden id="actFile"></label></div>`;
+  const items=list.length?list.slice(0,wide?30:12).map(row).join(""):`<div class="mut" style="margin-top:10px;font-size:13.5px">Aucune sortie importée pour l'instant.</div>`;
+  el.innerHTML=wide&&list.length
+    ?`<div class="card actsCard">${head}<div class="actsSplit"><div class="actsList">${items}</div><div class="actsPane" id="actPane">${actPane(actSel)}</div></div></div>${chargeCard()}`
+    :`<div class="card actsCard">${head}${list.length?`<div style="margin-top:10px">${items}</div>`:items}</div>${chargeCard()}`;
   $("#actFile").onchange=e=>{importFiles(e.target.files);e.target.value="";};
 }
+/* glisser des fichiers .fit sur la page Analyse (ordinateur) */
+document.addEventListener("dragover",e=>{if(curView&&curView()==="analysis"&&e.dataTransfer&&[...e.dataTransfer.types].includes("Files")){e.preventDefault();document.body.classList.add("fitdrop");}});
+document.addEventListener("dragleave",e=>{if(!e.relatedTarget)document.body.classList.remove("fitdrop");});
+document.addEventListener("drop",e=>{document.body.classList.remove("fitdrop");if(curView&&curView()==="analysis"&&e.dataTransfer&&e.dataTransfer.files.length){e.preventDefault();importFiles([...e.dataTransfer.files].filter(f=>/\.fit$/i.test(f.name)));}});
 
 /* ----- chaussures ----- */
 function shoesList(){return Object.entries(state.shoes||{}).map(([id,x])=>Object.assign({id},x));}
@@ -151,7 +169,7 @@ function shoeKm(id){const sh=(state.shoes||{})[id];if(!sh)return 0;return(+sh.km
 function openShoes(){
   const L=shoesList();
   $("#moreBody").innerHTML=`<div class="grab"></div><div class="eyebrow" style="color:#4ade80">Chaussures</div><div class="qsTitle">Kilométrage</div>
-   ${L.length?L.map(x=>{const k=shoeKm(x.id),c=k>=800?"#ff6b84":k>=600?"#f59e0b":"#4ade80";return`<div class="impRow"${x.ret?' style="opacity:.55"':""}><div style="display:flex;justify-content:space-between;gap:10px"><b>${esc(x.name)}${x.def&&!x.ret?' <span class="cpTag">par défaut</span>':""}${x.ret?" · retirée":""}</b><b style="color:${c}">${Math.round(k)} km</b></div><div class="inBar" style="margin:6px 0;background:#232e3c"><i style="width:${Math.min(100,k/8)}%;background:${c}"></i></div><div class="mut" style="font-size:12.5px">${k>=800?"Fin de vie : remplace-la pour ménager tes mollets.":k>=600?"Commence à t'en chercher une nouvelle (600 à 800 km).":"Une paire dure en général 600 à 800 km."}</div>
+   ${L.length?L.map(x=>{const k=shoeKm(x.id),c=k>=800?"#ff6b84":k>=600?"#f59e0b":"#4ade80";return`<div class="impRow"${x.ret?' style="opacity:.55"':""}><div style="display:flex;justify-content:space-between;gap:10px"><b>${escH(x.name)}${x.def&&!x.ret?' <span class="cpTag">par défaut</span>':""}${x.ret?" · retirée":""}</b><b style="color:${c}">${Math.round(k)} km</b></div><div class="inBar" style="margin:6px 0;background:#232e3c"><i style="width:${Math.min(100,k/8)}%;background:${c}"></i></div><div class="mut" style="font-size:12.5px">${k>=800?"Fin de vie : remplace-la pour ménager tes mollets.":k>=600?"Commence à t'en chercher une nouvelle (600 à 800 km).":"Une paire dure en général 600 à 800 km."}</div>
      <div style="display:flex;gap:8px;margin-top:8px">${x.ret?`<button class="btn" data-shoe="unret:${x.id}">Remettre en service</button>`:`${x.def?"":`<button class="btn" data-shoe="def:${x.id}">Par défaut</button>`}<button class="btn" data-shoe="ret:${x.id}">Retirer</button>`}</div></div>`;}).join(""):`<div class="mut" style="margin-bottom:10px">Ajoute ta paire actuelle : chaque séance validée lui ajoute sa distance.</div>`}
    <div class="qsGrid" style="margin-top:6px"><div class="fld"><label>Nom</label><input id="shName" placeholder="Hoka Mach 6"></div><div class="fld"><label>Km déjà faits</label><input id="shKm" inputmode="numeric" placeholder="0"></div></div>
    <button class="btn ok qSave" data-shoe="add">Ajouter la paire</button><button class="btn" style="width:100%;margin-top:8px" data-moreclose>Fermer</button>`;

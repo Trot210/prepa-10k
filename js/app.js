@@ -127,6 +127,7 @@ function renderToday(){
   const pend=MAIN.filter(s=>open(s)&&sdate(s)<TODAY&&sdate(s)>=addDays(TODAY,-7)).sort((a,b)=>sdate(a).localeCompare(sdate(b)));
   const mini=(l,v,s,c)=>`<div class="mini"><div class="lab">${l}</div><div class="v"${c?` style="color:${c}"`:""}>${v}</div>${s?`<div class="s">${s}</div>`:""}</div>`;
   let h="";
+  let L="",Rt="";
   if(pend.length)h+=`<div class="note warn todo">${pend.map(s=>`<div class="todoRow"><div><b>À valider</b> · ${s.title}<div class="mut" style="font-size:12.5px">${relDay(sdate(s))}</div></div><div class="todoBtns"><button class="btn" data-skip="${s.id}">Pas faite</button><button class="btn ok" data-finish="${s.id}">Terminer</button></div></div>`).join("")}</div>`;
   if(nx){const cap=efCap(nx),isT=sdate(nx)===TODAY,tc=T[nx.type].c;
     h+=`<div class="card todayCard" style="--tc:${tc}"><div class="eyebrow" style="color:${tc}">${isT?"Aujourd'hui":"Prochaine séance · "+relDay(sdate(nx))}</div>
@@ -138,12 +139,13 @@ function renderToday(){
   else h+=`<div class="card"><b>${MAIN.every(s=>state.done[s.id])?"Toutes les séances sont validées. Bravo !":"Plus aucune séance à venir dans ce cycle."}</b></div>`;
   const ms=w.sessions.filter(s=>!s.opt),dn=ms.filter(s=>state.done[s.id]),wkKm=ms.reduce((a,s)=>a+s.d,0),dKm=dn.reduce((a,s)=>a+doneKm(s),0);
   const ef=efStats(),vm=vmaMeasured();
-  if(cw>1&&TODAY<=addDays(w.mon,2))h+=bilanCard(P[cw-2]);
-  h+=`<div class="minis">${mini("Semaine "+cw+" / "+P.length,dn.length+" / "+ms.length+" faites",w.phase)}${mini("Volume semaine",km(dKm)+" / "+km(wkKm)+" km","réalisé / prévu")}${mini("EF ≤ 138 bpm",ef.logged?ef.ok+" / "+ef.logged:"—",ef.logged?(ef.ok===ef.logged?"toutes respectées":"au-dessus du plafond : ralentis"):"note ta FC moyenne",ef.logged?(ef.ok===ef.logged?"#4ade80":"#f59e0b"):"")}${mini("VMA",(vm?"":"≈ ")+kmh(vm||VMA_EST)+" km/h",vm?"mesurée au test":"estimée · test le 1er déc.")}</div>`;
+  L+=h;h="";
+  if(cw>1&&TODAY<=addDays(w.mon,2))Rt+=bilanCard(P[cw-2]);
+  Rt+=`<div class="minis">${mini("Semaine "+cw+" / "+P.length,dn.length+" / "+ms.length+" faites",w.phase)}${mini("Volume semaine",km(dKm)+" / "+km(wkKm)+" km","réalisé / prévu")}${mini("EF ≤ 138 bpm",ef.logged?ef.ok+" / "+ef.logged:"—",ef.logged?(ef.ok===ef.logged?"toutes respectées":"au-dessus du plafond : ralentis"):"note ta FC moyenne",ef.logged?(ef.ok===ef.logged?"#4ade80":"#f59e0b"):"")}${mini("VMA",(vm?"":"≈ ")+kmh(vm||VMA_EST)+" km/h",vm?"mesurée au test":"estimée · test le 1er déc.")}</div>`;
   const icon=s=>state.done[s.id]?["✓","#a3e635","Faite"]:skipped(s)?["–","#3a4a60","Non faite"]:sdate(s)<TODAY?["!","#f59e0b","À valider"]:s===nx?["→","#4ade80",isTouch()?"Prochaine":"Prochaine séance"]:["","#2a3646",""];
-  h+=`<div class="card weekList"><div class="wlHead">Cette semaine</div>${w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(s=>{const [ic,c,lab]=icon(s);return`<div class="wlRow" data-open="${s.id}"><span class="wlIc" style="background:${c}">${ic}</span><div style="flex:1;min-width:0"><div class="wlT">${s.title}</div><div class="mut" style="font-size:12.5px">${relDay(sdate(s))} · ${dur(s.t)}${lab?` · ${lab}`:""}</div></div><span class="mut">›</span></div>`;}).join("")}</div>`;
-  h+=progressionCard();
-  $("#today").innerHTML=h;
+  L+=`<div class="card weekList"><div class="wlHead">Cette semaine</div>${w.sessions.slice().sort((a,b)=>sdate(a).localeCompare(sdate(b))).map(s=>{const [ic,c,lab]=icon(s);return`<div class="wlRow" data-open="${s.id}"><span class="wlIc" style="background:${c}">${ic}</span><div style="flex:1;min-width:0"><div class="wlT">${s.title}</div><div class="mut" style="font-size:12.5px">${relDay(sdate(s))} · ${dur(s.t)}${lab?` · ${lab}`:""}</div></div><span class="mut">›</span></div>`;}).join("")}</div>`;
+  Rt+=`<div class="dOnly">${chargeCard()}</div>`+progressionCard();
+  $("#today").innerHTML=`<div class="tdL">${L}</div><div class="tdR">${Rt}</div>`;
 }
 function renderDash(){
   const MAIN=CY.main,P=PL(),now=new Date();
@@ -243,7 +245,7 @@ function renderCal(){
   let h=`<div class="calG"><div class="calH"></div>${dn.map(d=>`<div class="calH">${d}</div>`).join("")}`;
   P.forEach(w=>{h+=`<div class="calW">S${w.n}</div>`;for(let i=0;i<7;i++){const ds=addDays(w.mon,i),s=CY.all.find(x=>sdate(x)===ds),dnS=s&&state.done[s.id],sk=s&&(state.logs[s.id]||{}).skip,miss=s&&!dnS&&!sk&&ds<TODAY,out=ds<CY.from||ds>CY.to;
     const drag=s&&!dnS&&ds>=TODAY&&ds<=cycleOf(s).lastMove&&!isTouch();
-    h+=`<div class="calD ${ds===TODAY?"today":""} ${miss?"miss":""} ${out?"out":""}" data-cday="${ds}" ${s?`data-open="${s.id}"`:""}><span class="cdn">${+ds.slice(8)}</span>${s?`<span class="tl" ${drag?`draggable="true" data-drag="${s.id}"`:""} style="background:${T[s.type].c}">${CALS[s.type]||SHORT[s.type]||T[s.type].n}</span>${dnS?'<span class="cOk">✓</span>':sk?'<span class="cSk">–</span>':s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}`:""}</div>`;}});
+    h+=`<div class="calD ${ds===TODAY?"today":""} ${miss?"miss":""} ${out?"out":""}" data-cday="${ds}" ${s?`data-open="${s.id}"`:""}><span class="cdn">${+ds.slice(8)}</span>${s?`<span class="tl" ${drag?`draggable="true" data-drag="${s.id}"`:""} style="background:${T[s.type].c}">${CALS[s.type]||SHORT[s.type]||T[s.type].n}</span><span class="cT">${s.title}</span><span class="cDu">${dur(s.t)}</span>${dnS?'<span class="cOk">✓</span>':sk?'<span class="cSk">–</span>':s.cp?`<span class="cpMini">CP${s.cp}</span>`:""}`:""}</div>`;}});
   $("#calGrid").innerHTML=h+`</div><div class="mut" style="font-size:12.5px;margin-top:10px">${isTouch()?"Touche une séance pour l'ouvrir. Pour la déplacer : fiche → Déplacer la séance.":"Glisse une séance à venir sur un autre jour pour la déplacer (deux séances dures ne peuvent pas se suivre)."}</div>`;
 }
 function renderPlan(){
@@ -305,9 +307,9 @@ function logSummary(s){
   const l=state.logs[s.id]||{},dn=!!state.done[s.id];
   if(l.skip&&!dn)return`<div class="sec"><div class="note">Marquée comme <b>non faite</b>. Pas de rattrapage : reprends le plan normalement. <button class="btn" style="margin-top:8px" data-unskip="${s.id}">Remettre à faire</button></div></div>`;
   if(!dn&&!l.dur&&!l.fc&&!l.rpe)return"";
-  if(l.act)return actBlock(l.act,s)+(l.rpe||l.note?`<div class="sec"><div class="stats" style="margin-top:0">${l.rpe?`<div class="stat"><div class="l">Ressenti</div><div class="v">${l.rpe} / 10</div></div>`:""}${l.shoe&&(state.shoes||{})[l.shoe]?`<div class="stat"><div class="l">Chaussures</div><div class="v" style="font-size:14px">${esc(state.shoes[l.shoe].name)}</div></div>`:""}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${esc(l.note)}</div>`:""}</div>`:`<div class="sec"><div class="note warn">Ressenti à noter : touche « Réalisée · modifier » en bas.</div></div>`);
+  if(l.act)return actBlock(l.act,s)+(l.rpe||l.note?`<div class="sec"><div class="stats" style="margin-top:0">${l.rpe?`<div class="stat"><div class="l">Ressenti</div><div class="v">${l.rpe} / 10</div></div>`:""}${l.shoe&&(state.shoes||{})[l.shoe]?`<div class="stat"><div class="l">Chaussures</div><div class="v" style="font-size:14px">${escH(state.shoes[l.shoe].name)}</div></div>`:""}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${escH(l.note)}</div>`:""}</div>`:`<div class="sec"><div class="note warn">Ressenti à noter : touche « Réalisée · modifier » en bas.</div></div>`);
   const cap=efCap(s),fc=+l.fc,it=(k,v)=>v?`<div class="stat"><div class="l">${k}</div><div class="v">${v}</div></div>`:"";
-  return`<div class="sec"><h4>${dn?"Réalisée":"Notée"}</h4><div class="stats" style="margin-top:0">${it("Durée",l.dur?clock(parseT(l.dur)).replace("'"," min ").replace(/ min 00$/," min"):"")}${it("Distance",l.dist?km(+l.dist)+" km":"")}${it("FC moy.",fc?fc+(cap?(fc<=cap?' <span style="color:#4ade80">✓</span>':' <span style="color:#f59e0b">⚠</span>'):""):"")}${it("Ressenti",l.rpe?l.rpe+" / 10":"")}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${esc(l.note)}</div>`:""}</div>`;
+  return`<div class="sec"><h4>${dn?"Réalisée":"Notée"}</h4><div class="stats" style="margin-top:0">${it("Durée",l.dur?clock(parseT(l.dur)).replace("'"," min ").replace(/ min 00$/," min"):"")}${it("Distance",l.dist?km(+l.dist)+" km":"")}${it("FC moy.",fc?fc+(cap?(fc<=cap?' <span style="color:#4ade80">✓</span>':' <span style="color:#f59e0b">⚠</span>'):""):"")}${it("Ressenti",l.rpe?l.rpe+" / 10":"")}</div>${l.note?`<div class="mut" style="margin-top:8px;white-space:pre-line">${escH(l.note)}</div>`:""}</div>`;
 }
 /* ---------- TERMINER LA SÉANCE ---------- */
 let qsAt=0; // ouverture du panneau : un double toucher sur « Terminer » ne doit pas valider la séance
@@ -326,7 +328,7 @@ function openQS(id){
    <div class="qLab">Effort ressenti</div>
    <div class="rpe">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="btn ${String(l.rpe)===String(n)?"on":""}" data-rpe="${n}">${n}</button>`).join("")}</div>
    <div class="rpeLeg"><span>très facile</span><span>maximal</span></div>
-   ${shoesList().some(x=>!x.ret)?`<div class="fld" style="margin-top:12px"><label class="qLab" style="margin:0 0 6px;display:block">Chaussures</label><select id="qShoe">${shoesList().filter(x=>!x.ret||x.id===l.shoe).map(x=>`<option value="${x.id}" ${(l.shoe||defShoe())===x.id?"selected":""}>${esc(x.name)}</option>`).join("")}<option value="none" ${l.shoe==="none"?"selected":""}>Aucune</option></select></div>`:""}
+   ${shoesList().some(x=>!x.ret)?`<div class="fld" style="margin-top:12px"><label class="qLab" style="margin:0 0 6px;display:block">Chaussures</label><select id="qShoe">${shoesList().filter(x=>!x.ret||x.id===l.shoe).map(x=>`<option value="${x.id}" ${(l.shoe||defShoe())===x.id?"selected":""}>${escH(x.name)}</option>`).join("")}<option value="none" ${l.shoe==="none"?"selected":""}>Aucune</option></select></div>`:""}
    <details class="qNote"${l.note?" open":""}><summary>Ajouter une note</summary><textarea id="qNote" rows="2" placeholder="Sensations, allures des blocs, météo…">${l.note||""}</textarea></details>
    <button class="btn ok qSave" data-qsave="${id}">${dn?"Mettre à jour":"Enregistrer"}</button>
    <div class="qFoot"><button class="btn" data-qsclose>Annuler</button>${dn?`<button class="btn" data-undo="${id}">Marquer comme non faite</button>`:""}</div>`;
@@ -482,7 +484,7 @@ let popIgnore=false,pendingHash=null,sheetPushed=false;
 function navPush(h){if(location.hash===h)return;if(popIgnore){pendingHash=h;return;}try{history.pushState(null,"",h);}catch(e){}}
 function show(tab,o){
   if(tab==="race"&&!IS10())tab="dash";
-  setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis"){renderActs();initAnalysis();}},0);
+  setTimeout(()=>{if(tab==="race")fitBand();if(tab==="analysis"){renderActs();if(typeof initAnalysis==="function")initAnalysis();else addEventListener("load",()=>initAnalysis(),{once:true});}},0);
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab));
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id==="v-"+tab));
   document.querySelectorAll("#bnav [data-bn]").forEach(b=>b.classList.toggle("on",b.dataset.bn===(["dash","plan","analysis"].includes(tab)?tab:"more")));
@@ -497,22 +499,24 @@ function route(){
   const v=VIEWS.includes(a)?a:"dash";if(v!==curView())show(v,{noPush:true});
 }
 window.addEventListener("popstate",()=>{if(popIgnore){popIgnore=false;if(pendingHash){const h=pendingHash;pendingHash=null;if(h!==location.hash)try{history.pushState(null,"",h);}catch(e){}}return;}route();});
+const narrow=()=>matchMedia("(max-width:700px)").matches;
 function openMore(){
   const def=defaultCycle(),it=(attr,ic,l,s)=>`<button class="moreIt" ${attr}><span class="mIc">${ic}</span><span style="flex:1;text-align:left"><b>${l}</b>${s?`<span class="mut">${s}</span>`:""}</span><span class="mut">›</span></button>`;
   $("#moreBody").innerHTML=`<div class="grab"></div>
-   ${it('data-tab="paces"',"⏱","Allures & test","zones FC, VMA, allures")}
-   ${it('data-tab="guide"',"📖","Guide","piloter l'EF, montre, imprévus")}
+   ${narrow()?it('data-tab="paces"',"⏱","Allures & test","zones FC, VMA, allures")+it('data-tab="guide"',"📖","Guide","piloter l'EF, montre, imprévus"):""}
    ${IS10()?it('data-tab="race"',"🏁","Course","plan de passage, bracelet"):""}
    ${CYCLES.filter(c=>c!==CY).map(c=>it(`data-cycle="${c.id}"`,"🗂",c===def?"Revenir à "+c.name:"Voir l'archive "+c.name,c.full)).join("")}
    ${it("data-shoes","👟","Chaussures","kilométrage de tes paires")}
    ${it("data-gofoot","🔄","Synchro et sauvegarde","appareils, export, import")}
+   ${narrow()?"":`<div class="mut" style="font-size:12.5px;margin:6px 2px 0">${KEYS_HELP}</div>`}
    <button class="btn" style="width:100%;margin-top:10px" data-moreclose>Fermer</button>`;
   $("#more").classList.add("on");document.body.style.overflow="hidden";
 }
 function closeMore(){$("#more").classList.remove("on");if(!$("#ov").classList.contains("on")&&!$("#qs").classList.contains("on"))document.body.style.overflow="";}
+matchMedia("(min-width:1100px)").addEventListener("change",()=>{if(curView()==="analysis")renderActs();});
 function refresh(){applyVMA();renderDash();renderPlan();if(curView()==="analysis")renderActs();}
 document.addEventListener("click",e=>{
-  const el=e.target.closest("[data-act],[data-impgo],[data-shoe],[data-shoes],[data-actdel],[data-skip],[data-unskip],[data-pmode],[data-bn],[data-moreclose],[data-gofoot],[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
+  const el=e.target.closest("[data-actsel],[data-act],[data-impgo],[data-shoe],[data-shoes],[data-actdel],[data-skip],[data-unskip],[data-pmode],[data-bn],[data-moreclose],[data-gofoot],[data-finish],[data-watch],[data-qsclose],[data-qsave],[data-rpe],[data-undo],[data-tab],[data-cycle],[data-week],[data-wnav],[data-open],[data-close],[data-toggle],[data-savelog],[data-gotest],[data-bandtheme],[data-move],[data-unmove],[data-big],[data-bigclose],[data-print],[data-usetgt],[data-sync],[data-fit],[data-zipfit],[data-ics],[data-bkexp],[data-bkimp],[data-bkpaste]");
   if(e.target===$("#ov")){closeS();return;}
   if(e.target===$("#qs")){closeQS();return;}
   if(e.target===$("#more")){closeMore();return;}
@@ -520,10 +524,11 @@ document.addEventListener("click",e=>{
   if(!el)return;
   if(el.closest("#qs")&&Date.now()-qsAt<600)return;
   if(el.dataset.act){openAct(el.dataset.act);return;}
+  if(el.dataset.actsel){actSel=el.dataset.actsel;document.querySelectorAll("#actsRoot .wlRow").forEach(x=>x.classList.toggle("sel",x.dataset.actsel===actSel));$("#actPane").innerHTML=actPane(actSel);$("#actPane").scrollTop=0;return;}
   if(el.hasAttribute("data-impgo")){importGo();return;}
   if(el.dataset.shoe){shoeAction(el.dataset.shoe);return;}
   if(el.hasAttribute("data-shoes")){setTimeout(openShoes,0);return;}
-  if(el.dataset.actdel){if(confirm("Supprimer cette sortie importée ?")){delete state.logs[el.dataset.actdel];save();closeS();refresh();renderActs();}return;}
+  if(el.dataset.actdel){if(confirm("Supprimer cette sortie importée ?")){delete state.logs[el.dataset.actdel];if(actSel===el.dataset.actdel)actSel=null;save();closeS();refresh();renderActs();}return;}
   if(el.dataset.skip){const id=el.dataset.skip;state.logs[id]=Object.assign({},state.logs[id]||{},{skip:true});save();refresh();toast("Pas de rattrapage : reprends le plan normalement, sans doubler la séance suivante.",4200);return;}
   if(el.dataset.unskip){const id=el.dataset.unskip;if(state.logs[id])delete state.logs[id].skip;save();refresh();openS(id);return;}
   if(el.dataset.pmode){planMode=el.dataset.pmode;try{sessionStorage.setItem("prepa10kPlanMode",planMode);}catch(e){}renderPlan();return;}
@@ -565,6 +570,37 @@ document.addEventListener("dragstart",e=>{const d=e.target.closest&&e.target.clo
 document.addEventListener("dragover",e=>{const c=e.target.closest&&e.target.closest("[data-cday]");if(c){e.preventDefault();document.querySelectorAll(".calD.over").forEach(x=>x!==c&&x.classList.remove("over"));c.classList.add("over");}});
 document.addEventListener("drop",e=>{const c=e.target.closest&&e.target.closest("[data-cday]");document.querySelectorAll(".calD.over").forEach(x=>x.classList.remove("over"));if(!c)return;e.preventDefault();const id=e.dataTransfer.getData("text/plain");if(id)moveSession(id,c.dataset.cday,true);});
 document.addEventListener("change",e=>{const c=e.target.closest("[data-check]");if(!c)return;const id=c.dataset.check;if(c.checked)state.done[id]=true;else delete state.done[id];save();refresh();toast(c.checked?"Séance validée 💪":"Séance décochée");});
+/* Analyse sur ordinateur : sommaire latéral construit à partir de la barre de navigation de l'analyse */
+function buildAnaSide(){
+  const side=$("#anaSide"),nav=$("#ananav");if(!side)return;
+  if(!nav){side.innerHTML="";return;}
+  side.innerHTML=`<div class="sideHd">Sections</div>`+[...nav.querySelectorAll("a")].map(a=>`<a href="#" data-nav="${a.dataset.nav}">${a.textContent}</a>`).join("");
+  sideActive();
+}
+function sideActive(){
+  const side=$("#anaSide");if(!side||!side.children.length||curView()!=="analysis")return;
+  const off=(document.querySelector(".top").offsetHeight||0)+90;let cur=null;
+  side.querySelectorAll("a").forEach(a=>{const e=document.getElementById(a.dataset.nav);if(e&&e.getBoundingClientRect().top<=off)cur=a;});
+  side.querySelectorAll("a").forEach(a=>a.classList.toggle("on",a===(cur||side.querySelector("a"))));
+}
+new MutationObserver(buildAnaSide).observe($("#anaRoot"),{childList:true});
+window.addEventListener("scroll",sideActive,{passive:true});
+/* raccourcis clavier (ordinateur) */
+const KEYS_HELP="Raccourcis : 1 Aujourd'hui · 2 Plan · 3 Analyse · 4 Allures · ← → semaine · T terminer la séance · M menu Plus · Échap fermer";
+document.addEventListener("keydown",e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.defaultPrevented)return;
+  const tg=(e.target&&e.target.tagName)||"";if(/^(INPUT|TEXTAREA|SELECT)$/.test(tg)||(e.target&&e.target.isContentEditable))return;
+  const modal=$("#ov").classList.contains("on")||$("#qs").classList.contains("on")||$("#more").classList.contains("on")||$("#bigOv").classList.contains("on");
+  if(modal)return;
+  const k=e.key;
+  if(k==="1"){show("dash");}else if(k==="2"){show("plan");}else if(k==="3"){show("analysis");}else if(k==="4"){show("paces");}
+  else if((k==="ArrowLeft"||k==="ArrowRight")&&curView()==="plan"&&planMode==="week"){week=Math.min(PL().length,Math.max(1,week+(k==="ArrowRight"?1:-1)));renderPlan();}
+  else if(k==="t"||k==="T"){const b=document.querySelector("#today .todayCard [data-finish]");if(b)openQS(b.dataset.finish);else return;}
+  else if(k==="m"||k==="M"){openMore();}
+  else if(k==="?"){toast(KEYS_HELP,5000);}
+  else return;
+  e.preventDefault();
+});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#more").classList.contains("on"))closeMore();else if($("#qs").classList.contains("on"))closeQS();else{closeS();bigClose();}}});
 window.addEventListener("afterprint",()=>document.body.classList.remove("printband"));
 $("#calcBtn").onclick=()=>{const v=$("#t5").value;if(!parseT(v)||parseT(v)<900||parseT(v)>2400){toast("Format attendu : 20:45");return;}state.test=v;save();renderPaces();renderDash();toast("Allure de course mise à jour");};
